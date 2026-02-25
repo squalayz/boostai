@@ -321,7 +321,14 @@ const ArenaAgent = memo(function ArenaAgent({ ag, xPct, yOff, hasBeam, beamDir, 
 
 // === MAIN ===
 export default function BoostAI() {
-  const [view,setView]=useState("home");
+  const [view,setViewRaw]=useState("home");
+  const setView=(v:string)=>{if(v!==view){window.history.pushState({view:v},"",null);setViewRaw(v);}};
+  useEffect(()=>{
+    window.history.replaceState({view:"home"},"",null);
+    const onPop=(e:any)=>{const v=e.state?.view||"home";setViewRaw(v);setModal(null);};
+    window.addEventListener("popstate",onPop);
+    return()=>window.removeEventListener("popstate",onPop);
+  },[]);
   const [modal,setModal]=useState<string|null>(null);
   const [chain,setChain]=useState({supply:0,liq:0,burned:0,trading:false,price:0});
   const [loading,setLoading]=useState(true);
