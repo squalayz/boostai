@@ -439,7 +439,16 @@ export default function BoostAI() {
   useEffect(()=>{
     if(view!=="moonbase") return;
     let m=true;
-    const load=async()=>{const r=await apiFetch("/api/agents");if(m&&r.ok){const list=Array.isArray(r.data)?r.data:r.data?.agents||[];setArenaAgents(list);}};
+    const load=async()=>{
+      const r=await apiFetch("/api/agents");
+      if(!m) return;
+      const serverList=r.ok?(Array.isArray(r.data)?r.data:r.data?.agents||[]):[];
+      const localAgents=loadLS();
+      // Merge: server agents + any local agents not on server
+      const serverAddrs=new Set(serverList.map((a:any)=>a.address?.toLowerCase()));
+      const merged=[...serverList,...localAgents.filter((a:any)=>a.address&&!serverAddrs.has(a.address.toLowerCase()))];
+      if(merged.length>0||arenaAgents.length===0)setArenaAgents(merged);
+    };
     load();const iv=setInterval(load,15000);return()=>{m=false;clearInterval(iv);};
   },[view]);
 
