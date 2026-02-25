@@ -1,6 +1,8 @@
 // @ts-nocheck
 "use client";
 
+// SECURITY: All cryptographic operations happen client-side. Private keys NEVER leave the browser.
+
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
 /* ================================================================
@@ -15,6 +17,7 @@ const C = {
   router: "0x9055C9BaD2dE4DBB611d7d348e33285bA0B0e6f8",
   pair: "0x73a409E99D3d5B1dAF1fb413480950901E1CB1a7",
   rpc: "https://mainnet.base.org",
+  api: "https://boostai-server-production.up.railway.app",
 };
 const pad = (a: string) => a.replace("0x","").toLowerCase().padStart(64,"0");
 async function rpcCall(to: string, d: string){try{const r=await fetch(C.rpc,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method:"eth_call",params:[{to,data:d},"latest"]})});return(await r.json()).result}catch{return null}}
@@ -349,6 +352,21 @@ export default function BoostAI() {
             <div style={{position:"absolute",bottom:"20px",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#4a4574",animation:"bounce 2.5s ease infinite",letterSpacing:"2px"}}>SCROLL DOWN</div>
           </div>
 
+          {/* CONTRACTS */}
+          <section style={{padding:"40px 20px",maxWidth:"940px",margin:"0 auto"}}>
+            <Reveal><div style={{textAlign:"center"}}>
+              <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#4a4574",letterSpacing:"3px",marginBottom:"12px"}}>VERIFY ON-CHAIN</div>
+              <div style={{display:"flex",gap:"8px",justifyContent:"center",flexWrap:"wrap"}}>
+                {[{l:"TOKEN",a:C.token},{l:"REGISTRY",a:C.registry},{l:"ROUTER",a:C.router},{l:"LP",a:C.pair}].map((c,i)=>(
+                  <div key={i} onClick={()=>cp(c.a,"ct"+i)} style={{background:"rgba(8,6,28,0.8)",border:"2px solid #a855f715",borderRadius:"3px",padding:"8px 14px",cursor:"pointer",display:"flex",alignItems:"center",gap:"8px",transition:"all 0.2s"}}>
+                    <div><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",marginBottom:"2px",letterSpacing:"1px"}}>{c.l}</div><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"9px",color:"#8b85b1"}}>{c.a.slice(0,6)}...{c.a.slice(-4)}</div></div>
+                    {copied==="ct"+i?I.check(10,"#34d399"):I.copy(10,"#4a4574")}
+                  </div>
+                ))}
+              </div>
+            </div></Reveal>
+          </section>
+
           {/* HOW TO PLAY */}
           <section style={{padding:"80px 20px",maxWidth:"940px",margin:"0 auto"}}>
             <Reveal><h2 style={{fontFamily:"'Press Start 2P',monospace",fontSize:"clamp(11px,2vw,18px)",textAlign:"center",color:"#fbbf24",marginBottom:"6px",textShadow:"0 0 14px #fbbf2425"}}>HOW TO PLAY</h2><p style={{textAlign:"center",color:"#4a4574",fontSize:"10px",marginBottom:"40px",fontFamily:"'Press Start 2P',monospace",letterSpacing:"1px"}}>3 STEPS TO AUTONOMOUS ALPHA</p></Reveal>
@@ -374,20 +392,7 @@ export default function BoostAI() {
             </div>
           </section>
 
-          {/* CONTRACTS */}
-          <section style={{padding:"40px 20px",maxWidth:"940px",margin:"0 auto"}}>
-            <Reveal><div style={{textAlign:"center"}}>
-              <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#4a4574",letterSpacing:"3px",marginBottom:"12px"}}>VERIFY ON-CHAIN</div>
-              <div style={{display:"flex",gap:"8px",justifyContent:"center",flexWrap:"wrap"}}>
-                {[{l:"TOKEN",a:C.token},{l:"REGISTRY",a:C.registry},{l:"ROUTER",a:C.router},{l:"LP",a:C.pair}].map((c,i)=>(
-                  <div key={i} onClick={()=>cp(c.a,"ct"+i)} style={{background:"rgba(8,6,28,0.8)",border:"2px solid #a855f715",borderRadius:"3px",padding:"8px 14px",cursor:"pointer",display:"flex",alignItems:"center",gap:"8px",transition:"all 0.2s"}}>
-                    <div><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",marginBottom:"2px",letterSpacing:"1px"}}>{c.l}</div><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"9px",color:"#8b85b1"}}>{c.a.slice(0,6)}...{c.a.slice(-4)}</div></div>
-                    {copied==="ct"+i?I.check(10,"#34d399"):I.copy(10,"#4a4574")}
-                  </div>
-                ))}
-              </div>
-            </div></Reveal>
-          </section>
+
 
           {/* CTA */}
           <section style={{padding:"60px 20px 20px",textAlign:"center"}}><Reveal>
@@ -434,7 +439,9 @@ export default function BoostAI() {
                   <div style={{textAlign:"center",marginBottom:"14px"}}><Creature type={agentType} size={56} glow bounce/><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#34d399",marginTop:"8px"}}>{agentName} DEPLOYED!</div><p style={{fontSize:"9px",color:"#f87171",marginTop:"6px",fontFamily:"'Press Start 2P',monospace"}}>SAVE YOUR KEY NOW</p></div>
                   <div style={{marginBottom:"12px"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#22d3ee80",letterSpacing:"1px",marginBottom:"4px"}}>ADDRESS</div><div style={{background:"#050410",border:"2px solid #22d3ee15",borderRadius:"3px",padding:"10px"}}><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"10px",color:"#e2e0f0",wordBreak:"break-all",lineHeight:1.5}}>{wallet.addr}</div><button onClick={()=>cp(wallet.addr,"wa")} style={{marginTop:"6px",background:"#22d3ee10",border:"1px solid #22d3ee20",borderRadius:"2px",padding:"3px 10px",color:copied==="wa"?"#34d399":"#22d3ee",fontSize:"8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace"}}>{copied==="wa"?"OK!":"COPY"}</button></div></div>
                   <div style={{marginBottom:"16px"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#f8717180",letterSpacing:"1px",marginBottom:"4px"}}>PRIVATE KEY</div><div style={{background:"rgba(60,10,20,0.2)",border:"2px solid #f8717120",borderRadius:"3px",padding:"10px"}}><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"10px",color:"#cc8888",wordBreak:"break-all",lineHeight:1.5,filter:showKey?"none":"blur(5px)",userSelect:showKey?"all":"none",transition:"filter 0.2s"}}>{wallet.key}</div><div style={{display:"flex",gap:"6px",marginTop:"6px"}}><button onClick={()=>setShowKey(!showKey)} style={{background:"#f8717110",border:"1px solid #f8717120",borderRadius:"2px",padding:"3px 10px",color:"#f87171",fontSize:"8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",display:"flex",alignItems:"center",gap:"4px"}}>{showKey?I.eyeOff(10,"#f87171"):I.eye(10,"#f87171")} {showKey?"HIDE":"SHOW"}</button><button onClick={()=>cp(wallet.key,"wk")} style={{background:"#f8717110",border:"1px solid #f8717120",borderRadius:"2px",padding:"3px 10px",color:copied==="wk"?"#34d399":"#f87171",fontSize:"8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace"}}>{copied==="wk"?"OK!":"COPY"}</button></div></div></div>
-                  <PixBtn full big onClick={saveKey} color="#34d399">{I.check(13,"#fff")} KEY SAVED</PixBtn>
+                  <div style={{background:"rgba(52,211,153,0.06)",border:"1px solid #34d39930",borderRadius:"3px",padding:"10px",marginBottom:"12px",textAlign:"center"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399",lineHeight:1.8}}>Keys are generated 100% in your browser.</div><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399",lineHeight:1.8}}>No keys are ever sent to any server.</div><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399",lineHeight:1.8}}>Verify in source code.</div></div>
+                  <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}><PixBtn full big onClick={saveKey} color="#34d399">{I.check(13,"#fff")} KEY SAVED</PixBtn></div>
+                  <div style={{display:"flex",gap:"8px",justifyContent:"center",flexWrap:"wrap"}}><a href="https://github.com/user/boostai" target="_blank" rel="noopener noreferrer" style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#a855f7",textDecoration:"none",border:"1px solid #a855f730",borderRadius:"2px",padding:"4px 10px",background:"#a855f708"}}>VIEW SOURCE</a><a href="https://github.com/user/boostai" target="_blank" rel="noopener noreferrer" style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#22d3ee",textDecoration:"none",border:"1px solid #22d3ee30",borderRadius:"2px",padding:"4px 10px",background:"#22d3ee08"}}>OPEN SOURCE - VERIFY ON GITHUB</a></div>
                 </GameCard></div>
               )}
 
@@ -444,6 +451,7 @@ export default function BoostAI() {
                   <div style={{background:"#050410",border:"2px solid #22d3ee15",borderRadius:"3px",padding:"14px",textAlign:"center",marginBottom:"14px"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",letterSpacing:"2px",marginBottom:"6px"}}>DEPOSIT (BASE)</div><div onClick={()=>cp(wallet.addr,"fa")} style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"10px",color:"#22d3ee",cursor:"pointer",wordBreak:"break-all",lineHeight:1.5}}>{wallet.addr}</div>{copied==="fa"&&<div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399",marginTop:"4px"}}>COPIED!</div>}</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"16px"}}>{[{l:"TEST",v:"0.01 ETH",s:"Try it"},{l:"GO BIG",v:"0.1 ETH",s:"Recommended"}].map((o,i)=>(<div key={i} style={{background:"rgba(8,6,28,0.6)",border:"2px solid #a855f712",borderRadius:"3px",padding:"10px",textAlign:"center"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",marginBottom:"4px"}}>{o.l}</div><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#22d3ee"}}>{o.v}</div><div style={{fontSize:"9px",color:"#4a4574",marginTop:"2px"}}>{o.s}</div></div>))}</div>
                   <PixBtn full big onClick={()=>{setModal(null);setView("dashboard");}} color="#22d3ee">{I.shield(13,"#fff")} GO TO HQ</PixBtn>
+                  <div style={{textAlign:"center",marginTop:"12px"}}><a href="https://github.com/user/boostai" target="_blank" rel="noopener noreferrer" style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#22d3ee",textDecoration:"none",border:"1px solid #22d3ee30",borderRadius:"2px",padding:"4px 10px",background:"#22d3ee08"}}>OPEN SOURCE - VERIFY ON GITHUB</a></div>
                 </GameCard></div>
               )}
             </div>
