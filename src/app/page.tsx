@@ -250,7 +250,7 @@ export default function BoostAI() {
   const [introFade,setIntroFade]=useState(true);
 
   useEffect(()=>{let m=true;const l=async()=>{const d=await fetchChain();if(m){setChain(d);setLoading(false);}};l();const iv=setInterval(l,30000);return()=>{m=false;clearInterval(iv);};},[]);
-  useEffect(()=>{const t=setTimeout(()=>setIntroFade(false),1600);return()=>clearTimeout(t);},[]);
+  useEffect(()=>{const t=setTimeout(()=>setIntroFade(false),2400);return()=>clearTimeout(t);},[]);
 
   const cp=(txt: string,id: string)=>{navigator.clipboard.writeText(txt).then(()=>{setCopied(id);setTimeout(()=>setCopied(null),2000);});};
   const openCreate=()=>{setModal("select");setAgentName("");setAgentType(0);setWallet(null);setShowKey(false);};
@@ -272,9 +272,10 @@ export default function BoostAI() {
         @keyframes popIn{from{opacity:0;transform:scale(0.5)}to{opacity:1;transform:scale(1)}}
         @keyframes bounce{0%,20%,50%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}60%{transform:translateY(-3px)}}
         @keyframes scanline{0%{transform:translateY(-100vh)}100%{transform:translateY(100vh)}}
-        @keyframes agentWake{0%{opacity:0;transform:scale(0.3) translateY(20px);filter:brightness(0)}40%{opacity:0.6;transform:scale(0.8) translateY(-4px);filter:brightness(1.8)}60%{opacity:1;transform:scale(1.1) translateY(-8px);filter:brightness(1.2)}100%{opacity:1;transform:scale(1) translateY(0);filter:brightness(1)}}
-        @keyframes agentGlowPulse{0%{filter:drop-shadow(0 0 0px transparent)}50%{filter:drop-shadow(0 0 20px var(--glow-color))}100%{filter:drop-shadow(0 0 8px var(--glow-color))}}
-        @keyframes siteReveal{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}
+        @keyframes agentWake{0%{opacity:0;transform:scale(0.4) translateY(30px);filter:brightness(0)}50%{opacity:0.7;transform:scale(0.95) translateY(-2px);filter:brightness(1.4)}70%{opacity:1;transform:scale(1.05) translateY(-5px);filter:brightness(1.1)}100%{opacity:1;transform:scale(1) translateY(0);filter:brightness(1)}}
+        @keyframes agentGlowPulse{0%{filter:drop-shadow(0 0 0px transparent)}50%{filter:drop-shadow(0 0 24px var(--glow-color))}100%{filter:drop-shadow(0 0 10px var(--glow-color))}}
+        @keyframes agentDrift{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-60px) scale(0.7)}}
+        @keyframes siteReveal{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}
         @keyframes introBgFade{0%{opacity:1}100%{opacity:0;pointer-events:none}}
         input::placeholder{color:#4a4574}
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#030210}::-webkit-scrollbar-thumb{background:#581c87;border-radius:2px}
@@ -282,10 +283,10 @@ export default function BoostAI() {
       `}</style>
 
       {/* AGENT WAKE-UP INTRO */}
-      <div style={{position:"fixed",inset:0,zIndex:introFade?200:0,pointerEvents:introFade?"all":"none",background:"#030210",display:"flex",justifyContent:"center",alignItems:"center",animation:introFade?"none":"introBgFade 0.5s ease forwards"}}>
-        <div style={{display:"flex",gap:"18px",alignItems:"flex-end"}}>
+      <div style={{position:"fixed",inset:0,zIndex:introFade?200:0,pointerEvents:introFade?"all":"none",background:"#030210",display:"flex",justifyContent:"center",alignItems:"center",transition:"opacity 1s ease",opacity:introFade?1:0}}>
+        <div style={{display:"flex",gap:"20px",alignItems:"flex-end",transition:"all 1s ease",transform:introFade?"translateY(0) scale(1)":"translateY(-50px) scale(0.8)",opacity:introFade?1:0}}>
           {[4,3,0,1,2].map((t,i)=>{const colors=["#fbbf24","#f87171","#a855f7","#22d3ee","#34d399"];return(
-            <div key={t} style={{"--glow-color":colors[i],animation:`agentWake 0.5s cubic-bezier(0.34,1.56,0.64,1) ${0.15+i*0.18}s both, agentGlowPulse 1.5s ease ${0.65+i*0.18}s both`,display:"flex",flexDirection:"column",alignItems:"center"} as any}>
+            <div key={t} style={{"--glow-color":colors[i],animation:`agentWake 0.7s cubic-bezier(0.22,1,0.36,1) ${0.2+i*0.22}s both, agentGlowPulse 2s ease ${0.9+i*0.22}s both`,display:"flex",flexDirection:"column",alignItems:"center"} as any}>
               <Creature type={t} size={i===2?64:i===1||i===3?44:32} glow={i===2}/>
             </div>
           );})}
@@ -293,7 +294,7 @@ export default function BoostAI() {
       </div>
 
       {/* MAIN CONTENT */}
-      <div style={{animation:introFade?"none":"siteReveal 0.6s ease 0.3s both"}}>
+      <div style={{opacity:introFade?0:1,transform:introFade?"translateY(15px)":"translateY(0)",transition:"opacity 1.2s ease 0.2s, transform 1.2s ease 0.2s"}}>
       <SpaceCanvas/>
       <div style={{position:"fixed",inset:0,zIndex:1,pointerEvents:"none",overflow:"hidden"}}><div style={{width:"100%",height:"2px",background:"rgba(168,85,247,0.04)",animation:"scanline 5s linear infinite"}}/></div>
 
