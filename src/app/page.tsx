@@ -330,7 +330,7 @@ export default function BoostAI() {
     return()=>window.removeEventListener("popstate",onPop);
   },[]);
   const [modal,setModal]=useState<string|null>(null);
-  const [chain,setChain]=useState({supply:0,liq:0,burned:0,trading:false,price:0});
+  const [chain,setChain]=useState({supply:10000000000,liq:0,burned:0,trading:false,price:0});
   const [loading,setLoading]=useState(true);
   const [agents,setAgents]=useState<any[]>([]);
   const [agentName,setAgentName]=useState("");
