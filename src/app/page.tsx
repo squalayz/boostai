@@ -1,7 +1,7 @@
 // @ts-nocheck
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 
 /* ================================================================
    BOOSTAI -- THE FIRST TOKEN HUMANS CAN'T BUY
@@ -51,10 +51,6 @@ const AGENTS = [
   { id:2, name:"BOOSTIN", desc:"Conservative diamond hands.", color:"#34d399", eye:"#6ee7b7", accent:"#ec4899", atk:2, def:6, spd:3, trait:"DEFENSIVE" },
   { id:3, name:"BOOSTMAN", desc:"High frequency micro-scalper.", color:"#f87171", eye:"#fca5a5", accent:"#34d399", atk:6, def:1, spd:6, trait:"SPEED" },
   { id:4, name:"BOOSTGIRL", desc:"Rare legendary. Max stats.", color:"#fbbf24", eye:"#fde68a", accent:"#22d3ee", atk:5, def:5, spd:5, trait:"LEGENDARY" },
-];
-const DEMO_AGENTS = [
-  {name:"ALPHA-WOLF",type:1,address:"demo-1"},{name:"DIAMOND-9",type:4,address:"demo-2"},{name:"MOON-SHOT",type:0,address:"demo-3"},{name:"CRYPTO-KING",type:3,address:"demo-4"},
-  {name:"NOVA-PRIME",type:2,address:"demo-5"},{name:"DEGEN-BOT",type:1,address:"demo-6"},{name:"STAR-HUNTER",type:3,address:"demo-7"},{name:"BYTE-FORCE",type:0,address:"demo-8"},
 ];
 
 // === PIXEL CREATURE SVG ===
@@ -311,6 +307,17 @@ function DeployTerm({name,type,onDone}: any) {
   </div>);
 }
 
+// === MEMOIZED ARENA AGENT ===
+const ArenaAgent = memo(function ArenaAgent({ ag, xPct, yOff, hasBeam, beamDir, onClick, index }: any) {
+  const a = AGENTS[(ag.type ?? 0) % 5];
+  return (
+    <div onClick={onClick} style={{position:"absolute",bottom:(100+yOff)+"px",left:xPct+"%",transform:"translateX(-50%)",cursor:"pointer",animation:`zeroGBob ${3+index*0.3}s ease-in-out ${index*0.2}s infinite`,zIndex:10,textAlign:"center",transition:"filter 0.3s",filter:hasBeam?`drop-shadow(0 0 12px ${beamDir==="buy"?"#34d399":"#f87171"})`:undefined}}>
+      <Creature type={(ag.type??0)%5} size={36} glow={hasBeam} bounce={false}/>
+      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:a.color,marginTop:"2px",textShadow:"0 0 6px rgba(0,0,0,0.8)",whiteSpace:"nowrap"}}>{ag.name}</div>
+    </div>
+  );
+});
+
 // === MAIN ===
 export default function BoostAI() {
   const [view,setView]=useState("home");
@@ -337,6 +344,11 @@ export default function BoostAI() {
   const [laserBeams,setLaserBeams]=useState<any[]>([]);
   const lastTradeIdRef=useRef(0);
   const displayAgentsRef=useRef<any[]>([]);
+  const volumeTradesRef=useRef<any[]>([]);
+  const [arenaBrowser,setArenaBrowser]=useState(false);
+  const [browserSearch,setBrowserSearch]=useState("");
+  const [browserPage,setBrowserPage]=useState(1);
+  const [volumeBars,setVolumeBars]=useState<{buy:number,sell:number}[]>(Array.from({length:30},()=>({buy:0,sell:0})));
 
   // Health check every 30s
   useEffect(()=>{
@@ -423,7 +435,7 @@ export default function BoostAI() {
     load();const iv=setInterval(load,15000);return()=>{m=false;clearInterval(iv);};
   },[view]);
 
-  // Arena: poll recent trades
+  // Arena: poll recent trades + compute volume
   useEffect(()=>{
     if(view!=="arena") return;
     let m=true;
@@ -438,6 +450,28 @@ export default function BoostAI() {
             const idx=da.findIndex((a: any)=>a.address===trade.agentAddress);
             if(idx>=0) fireLaser(idx,trade.type==="buy"?"buy":"sell",trade.amount||0.01);
           });
+          const now=Date.now();
+          volumeTradesRef.current=[...r.data,...volumeTradesRef.current].filter((t:any)=>{
+            const ts=t.createdAt?new Date(t.createdAt).getTime():now;
+            return ts>now-30*60*1000;
+          });
+        }
+        if(m){
+          const now=Date.now();
+          const bars=Array.from({length:30},(_,i)=>{
+            const barEnd=now-(29-i)*60*1000;
+            const barStart=barEnd-60*1000;
+            let buy=0,sell=0;
+            volumeTradesRef.current.forEach((t:any)=>{
+              const ts=t.createdAt?new Date(t.createdAt).getTime():now;
+              if(ts>=barStart&&ts<barEnd){
+                const amt=parseFloat(t.amount)||0;
+                if(t.type==="buy")buy+=amt;else sell+=amt;
+              }
+            });
+            return{buy,sell};
+          });
+          setVolumeBars(bars);
         }
       }catch{}
     };
@@ -458,19 +492,34 @@ export default function BoostAI() {
     setTimeout(()=>setLaserBeams(p=>p.filter(b=>b.id!==id)),1500);
   },[]);
 
-  const displayAgents=useMemo(()=>arenaAgents.length>0?arenaAgents.map((a: any)=>({...a,demo:false})):DEMO_AGENTS.map(a=>({...a,demo:true})),[arenaAgents]);
+  const displayAgents=useMemo(()=>{
+    if(arenaAgents.length===0) return [];
+    const sorted=[...arenaAgents].sort((a:any,b:any)=>{
+      const at=new Date(a.lastTradeAt||a.createdAt||0).getTime();
+      const bt=new Date(b.lastTradeAt||b.createdAt||0).getTime();
+      return bt-at;
+    });
+    return sorted.slice(0,20);
+  },[arenaAgents]);
   useEffect(()=>{displayAgentsRef.current=displayAgents;},[displayAgents]);
 
   const arenaStars=useMemo(()=>Array.from({length:70},(_,i)=>({left:Math.random()*100,size:Math.random()*2+0.5,dur:Math.random()*12+8,delay:-(Math.random()*20),opacity:Math.random()*0.5+0.15,color:Math.random()>0.5?"#a855f7":"#22d3ee"})),[]);
 
-  // Demo laser beams (fire random beams when no real agents)
-  useEffect(()=>{
-    if(view!=="arena"||arenaAgents.length>0) return;
-    let to: any;
-    const fire=()=>{fireLaser(Math.floor(Math.random()*8),Math.random()>0.5?"buy":"sell",+(Math.random()*0.5+0.01).toFixed(3));to=setTimeout(fire,5000+Math.random()*3000);};
-    to=setTimeout(fire,2000);
-    return()=>clearTimeout(to);
-  },[view,arenaAgents.length,fireLaser]);
+  const agentPositions=useMemo(()=>{
+    const p: Record<string,{x:number,y:number}>={};
+    displayAgents.forEach((ag:any,i:number)=>{
+      p[ag.address]={x:((i+1)/(displayAgents.length+1))*100,y:[0,-6,-3,-8,-2,-5,-7,-1][i%8]};
+    });
+    return p;
+  },[displayAgents]);
+
+  const volumeMax=useMemo(()=>Math.max(...volumeBars.map(b=>b.buy+b.sell),0.001),[volumeBars]);
+  const volumeEmpty=useMemo(()=>volumeBars.every(b=>b.buy+b.sell===0),[volumeBars]);
+
+  const filteredBrowserAgents=useMemo(()=>{
+    if(!browserSearch) return arenaAgents;
+    return arenaAgents.filter((a:any)=>(a.name||"").toUpperCase().includes(browserSearch));
+  },[arenaAgents,browserSearch]);
 
   const cp=(txt: string,id: string)=>{navigator.clipboard.writeText(txt).then(()=>{setCopied(id);setTimeout(()=>setCopied(null),2000);});};
   const openCreate=()=>{setModal("select");setAgentName("");setAgentType(0);setWallet(null);setShowKey(false);setNameAvail(null);setNameChecking(false);};
@@ -645,9 +694,11 @@ export default function BoostAI() {
 
         {/* === ARENA === */}
         {view==="arena"&&!modal&&(
-          <div style={{height:"100vh",display:"flex",flexDirection:"column",paddingTop:"48px"}}>
-            {/* TOP 65%: SPACE ARENA */}
-            <div style={{flex:"0 0 65%",position:"relative",overflow:"hidden",background:"radial-gradient(ellipse at 50% 80%,#0c0a24 0%,#030210 100%)"}}>
+          <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",paddingTop:"48px"}}>
+            {!arenaBrowser?(
+            <>
+            {/* TOP: SPACE ARENA - 65vh */}
+            <div style={{height:"65vh",position:"relative",overflow:"hidden",background:"radial-gradient(ellipse at 50% 80%,#0c0a24 0%,#030210 100%)"}}>
               {/* Floating stars */}
               {arenaStars.map((s: any,i: number)=>(
                 <div key={i} style={{position:"absolute",left:s.left+"%",bottom:"-5%",width:s.size+"px",height:s.size+"px",borderRadius:"50%",background:s.color,opacity:s.opacity,animation:`starDrift ${s.dur}s linear ${s.delay}s infinite`,pointerEvents:"none"}}/>
@@ -656,41 +707,50 @@ export default function BoostAI() {
               {/* Arena title */}
               <div style={{position:"absolute",top:"16px",left:"50%",transform:"translateX(-50%)",textAlign:"center",zIndex:15}}>
                 <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"clamp(10px,2vw,16px)",color:"#fbbf24",textShadow:"0 0 14px #fbbf2430",letterSpacing:"3px"}}>SPACE ARENA</div>
-                <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#4a4574",marginTop:"4px",letterSpacing:"2px"}}>{displayAgents.length} AGENTS {arenaAgents.length===0?"// DEMO MODE":""}</div>
               </div>
+
+              {/* Badge: showing N of total */}
+              {arenaAgents.length>0&&(
+                <div style={{position:"absolute",top:"16px",right:"16px",zIndex:15,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:"6px"}}>
+                  <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",background:"rgba(3,2,16,0.8)",padding:"4px 8px",border:"1px solid #a855f715",borderRadius:"2px",letterSpacing:"1px"}}>SHOWING {displayAgents.length} OF {arenaAgents.length} AGENTS</div>
+                  <div onClick={()=>{setArenaBrowser(true);setBrowserPage(1);setBrowserSearch("");}} style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#22d3ee",cursor:"pointer",letterSpacing:"1px",textDecoration:"underline",textUnderlineOffset:"3px"}}>VIEW ALL AGENTS</div>
+                </div>
+              )}
 
               {/* Moon rock platform */}
               <div style={{position:"absolute",bottom:0,left:0,right:0,height:"120px",background:"linear-gradient(180deg,#2a2840,#1a1830)",clipPath:"polygon(0% 45%,3% 35%,7% 42%,12% 28%,18% 38%,23% 25%,28% 35%,33% 22%,38% 32%,42% 20%,48% 30%,52% 18%,58% 28%,63% 22%,68% 32%,72% 25%,78% 35%,83% 28%,88% 38%,93% 30%,97% 38%,100% 32%,100% 100%,0% 100%)",boxShadow:"0 -8px 30px rgba(168,85,247,0.08)"}}>
                 <div style={{position:"absolute",top:0,left:0,right:0,height:"3px",background:"linear-gradient(90deg,transparent,#a855f720,#22d3ee15,#a855f720,transparent)"}}/>
               </div>
 
-              {/* Agents standing on moon rock */}
+              {/* Empty state */}
+              {displayAgents.length===0&&(
+                <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:12}}>
+                  <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#4a4574",letterSpacing:"2px",marginBottom:"16px"}}>NO AGENTS YET -- BE THE FIRST</div>
+                  <PixBtn onClick={openCreate} color="#a855f7">{I.bolt(11,"#fff")} DEPLOY AGENT</PixBtn>
+                </div>
+              )}
+
+              {/* Agents on moon rock (top 20) */}
               {displayAgents.map((ag: any,i: number)=>{
-                const xPct=((i+1)/(displayAgents.length+1))*100;
-                const yOff=[0,-6,-3,-8,-2,-5,-7,-1][i%8];
-                const a=AGENTS[(ag.type??0)%5];
-                const hasBeam=laserBeams.some((b: any)=>b.idx===i);
-                const beamDir=laserBeams.find((b: any)=>b.idx===i)?.direction;
+                const pos=agentPositions[ag.address]||{x:50,y:0};
+                const beam=laserBeams.find((b: any)=>b.idx===i);
                 return(
-                  <div key={ag.address||ag.name||i} onClick={()=>setArenaPopup(ag)} style={{position:"absolute",bottom:(100+yOff)+"px",left:xPct+"%",transform:"translateX(-50%)",cursor:"pointer",animation:`zeroGBob ${3+i*0.3}s ease-in-out ${i*0.2}s infinite`,zIndex:10,textAlign:"center",transition:"filter 0.3s",filter:hasBeam?`drop-shadow(0 0 12px ${beamDir==="buy"?"#34d399":"#f87171"})`:undefined}}>
-                    <Creature type={(ag.type??0)%5} size={36} glow={hasBeam} bounce={false}/>
-                    <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:a.color,marginTop:"2px",textShadow:"0 0 6px rgba(0,0,0,0.8)",whiteSpace:"nowrap"}}>{ag.name}</div>
-                    {ag.demo&&<div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"5px",color:"#4a4574",marginTop:"1px"}}>(DEMO)</div>}
-                  </div>
+                  <ArenaAgent key={ag.address} ag={ag} xPct={pos.x} yOff={pos.y} hasBeam={!!beam} beamDir={beam?.direction} onClick={()=>setArenaPopup(ag)} index={i}/>
                 );
               })}
 
               {/* Laser beams */}
               {laserBeams.map((beam: any)=>{
                 if(beam.idx<0||beam.idx>=displayAgents.length) return null;
-                const xPct=((beam.idx+1)/(displayAgents.length+1))*100;
+                const ag=displayAgents[beam.idx];
+                const pos=agentPositions[ag?.address]||{x:50,y:0};
                 const isBuy=beam.direction==="buy";
                 const color=isBuy?"#34d399":"#f87171";
                 const w=Math.min(6,Math.max(3,(beam.amount||0.05)*10));
                 return(
                   <div key={beam.id}>
-                    <div style={{position:"absolute",left:xPct+"%",bottom:isBuy?"130px":"auto",top:isBuy?"auto":"calc(100% - 110px)",width:w+"px",background:`linear-gradient(${isBuy?"to top":"to bottom"},${color},${color}40,transparent)`,boxShadow:`0 0 ${w*2}px ${color},0 0 ${w*4}px ${color}40`,borderRadius:w+"px",transform:"translateX(-50%)",animation:"laserShoot 1.5s ease-out forwards",pointerEvents:"none",zIndex:5}}/>
-                    <div style={{position:"absolute",left:xPct+"%",bottom:isBuy?"340px":"auto",top:isBuy?"auto":"calc(100% - 90px)",transform:"translateX(-50%)",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color,whiteSpace:"nowrap",animation:"laserText 1.5s ease-out forwards",pointerEvents:"none",zIndex:15,textShadow:`0 0 6px ${color}`}}>
+                    <div style={{position:"absolute",left:pos.x+"%",bottom:isBuy?"130px":"auto",top:isBuy?"auto":"calc(100% - 110px)",width:w+"px",background:`linear-gradient(${isBuy?"to top":"to bottom"},${color},${color}40,transparent)`,boxShadow:`0 0 ${w*2}px ${color},0 0 ${w*4}px ${color}40`,borderRadius:w+"px",transform:"translateX(-50%)",animation:"laserShoot 1.5s ease-out forwards",pointerEvents:"none",zIndex:5}}/>
+                    <div style={{position:"absolute",left:pos.x+"%",bottom:isBuy?"340px":"auto",top:isBuy?"auto":"calc(100% - 90px)",transform:"translateX(-50%)",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color,whiteSpace:"nowrap",animation:"laserText 1.5s ease-out forwards",pointerEvents:"none",zIndex:15,textShadow:`0 0 6px ${color}`}}>
                       {isBuy?"+"+beam.amount+" ETH":"-"+beam.amount+" BOOST"}
                     </div>
                   </div>
@@ -698,39 +758,101 @@ export default function BoostAI() {
               })}
             </div>
 
-            {/* BOTTOM 35%: HUD PANEL */}
-            <div style={{flex:"0 0 35%",background:"rgba(3,2,16,0.95)",borderTop:"2px solid #a855f720",padding:"12px 20px",display:"flex",flexDirection:"column",overflow:"hidden"}}>
-              {/* Stats bar */}
-              <div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginBottom:"10px"}}>
-                <HudStat label="AGENTS" value={String(arenaAgents.length||displayAgents.length)} icon={I.star(10,"#22d3ee")}/>
-                <HudStat label="SUPPLY" value={loading?"...":fmt(chain.supply)} color="#a855f7" icon={I.bolt(10,"#a855f7")}/>
-                <HudStat label="LIQUIDITY" value={loading?"...":chain.liq.toFixed(4)+" ETH"} color="#22d3ee" icon={I.shield(10,"#22d3ee")}/>
-                <HudStat label="BURNED" value={loading?"...":fmt(chain.burned)} color="#f87171" icon={I.flame(10,"#f87171")}/>
-                <HudStat label="STATUS" value={loading?"...":chain.trading?"LIVE!":"SOON"} color={chain.trading?"#34d399":"#fbbf24"} icon={I.shield(10,chain.trading?"#34d399":"#fbbf24")}/>
-              </div>
-
-              {/* Live trade feed */}
-              <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#4a4574",letterSpacing:"2px",marginBottom:"6px"}}>LIVE FEED</div>
-              <div style={{flex:1,overflowY:"auto"}}>
-                {arenaTrades.length===0?(
-                  <div style={{textAlign:"center",padding:"24px",fontFamily:"'Press Start 2P',monospace",fontSize:"8px",color:"#4a4574",animation:"feedPulse 2s ease infinite",letterSpacing:"1px"}}>AWAITING FIRST TRADE...</div>
-                ):(
-                  arenaTrades.slice(0,20).map((trade: any,i: number)=>{
-                    const isBuy=trade.type==="buy";
-                    const tColor=isBuy?"#34d399":"#f87171";
+            {/* CHART + LIVE FEED row */}
+            <div style={{display:"grid",gridTemplateColumns:"55% 45%",background:"rgba(3,2,16,0.95)",borderTop:"2px solid #a855f720"}}>
+              {/* TRADE VOLUME CHART */}
+              <div style={{padding:"12px 16px",borderRight:"2px solid #a855f710"}}>
+                <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"8px",color:"#fbbf24",letterSpacing:"2px",marginBottom:"10px"}}>TRADE VOLUME (30 MIN)</div>
+                <div style={{display:"flex",alignItems:"flex-end",gap:"2px",height:"120px",position:"relative"}}>
+                  {volumeBars.map((bar,i)=>{
+                    const total=bar.buy+bar.sell;
+                    const totalPct=(total/volumeMax)*100;
+                    const buyH=total>0?(bar.buy/total)*100:0;
+                    const sellH=total>0?(bar.sell/total)*100:0;
                     return(
-                      <div key={trade.id||i} style={{display:"flex",alignItems:"center",gap:"8px",padding:"4px 8px",borderBottom:"1px solid #a855f708",animation:`fadeUp 0.3s ease ${i*0.05}s both`}}>
-                        <div style={{width:6,height:6,borderRadius:"50%",background:tColor,boxShadow:`0 0 4px ${tColor}`,flexShrink:0}}/>
-                        <Creature type={(trade.agentType??0)%5} size={16}/>
-                        <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#e2e0f0",flex:1}}>{trade.agentName||"AGENT"}</span>
-                        <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:tColor}}>{isBuy?"+":"-"}{trade.amount||"0.00"} {isBuy?"ETH":"BOOST"}</span>
-                        <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574"}}>{trade.timeAgo||"now"}</span>
+                      <div key={i} style={{flex:1,height:"100%",display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
+                        <div style={{width:"100%",overflow:"hidden",height:Math.max(totalPct,1)+"%",minHeight:"1px",background:total>0?"transparent":"#a855f710",display:"flex",flexDirection:"column"}}>
+                          {total>0&&<><div style={{flex:sellH,background:"#f87171"}}/><div style={{flex:buyH,background:"#34d399"}}/></>}
+                        </div>
                       </div>
                     );
-                  })
-                )}
+                  })}
+                  {volumeEmpty&&(
+                    <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                      <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"8px",color:"#4a4574",letterSpacing:"1px",animation:"feedPulse 2s ease infinite"}}>AWAITING TRADES</span>
+                    </div>
+                  )}
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",marginTop:"4px"}}>
+                  {[30,25,20,15,10,5,0].map(m=>(
+                    <span key={m} style={{fontFamily:"'Press Start 2P',monospace",fontSize:"5px",color:"#4a4574"}}>{m?m+"m":"NOW"}</span>
+                  ))}
+                </div>
+              </div>
+
+              {/* LIVE FEED */}
+              <div style={{padding:"12px 16px"}}>
+                <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#4a4574",letterSpacing:"2px",marginBottom:"6px"}}>LIVE FEED</div>
+                <div style={{maxHeight:"250px",overflowY:"auto"}}>
+                  {arenaTrades.length===0?(
+                    <div style={{textAlign:"center",padding:"24px",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#4a4574",animation:"feedPulse 2s ease infinite",letterSpacing:"1px"}}>AWAITING FIRST TRADE...</div>
+                  ):(
+                    arenaTrades.slice(0,30).map((trade: any,i: number)=>{
+                      const isBuy=trade.type==="buy";
+                      const tColor=isBuy?"#34d399":"#f87171";
+                      return(
+                        <div key={trade.id||i} style={{display:"flex",alignItems:"center",gap:"6px",padding:"3px 6px",borderBottom:"1px solid #a855f708"}}>
+                          <div style={{width:5,height:5,borderRadius:"50%",background:tColor,boxShadow:`0 0 4px ${tColor}`,flexShrink:0}}/>
+                          <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#e2e0f0",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{trade.agentName||"AGENT"}</span>
+                          <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:tColor,whiteSpace:"nowrap"}}>{isBuy?"+":"-"}{trade.amount||"0.00"}</span>
+                          <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",whiteSpace:"nowrap"}}>{trade.timeAgo||"now"}</span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* STATS BAR */}
+            <div style={{display:"flex",gap:"8px",flexWrap:"wrap",padding:"10px 20px",background:"rgba(3,2,16,0.95)",borderTop:"2px solid #a855f710"}}>
+              <HudStat label="AGENTS" value={String(arenaAgents.length)} icon={I.star(10,"#22d3ee")}/>
+              <HudStat label="SUPPLY" value={loading?"...":fmt(chain.supply)} color="#a855f7" icon={I.bolt(10,"#a855f7")}/>
+              <HudStat label="LIQUIDITY" value={loading?"...":chain.liq.toFixed(4)+" ETH"} color="#22d3ee" icon={I.shield(10,"#22d3ee")}/>
+              <HudStat label="BURNED" value={loading?"...":fmt(chain.burned)} color="#f87171" icon={I.flame(10,"#f87171")}/>
+              <HudStat label="STATUS" value={loading?"...":chain.trading?"LIVE!":"SOON"} color={chain.trading?"#34d399":"#fbbf24"} icon={I.shield(10,chain.trading?"#34d399":"#fbbf24")}/>
+            </div>
+            </>
+            ):(
+            /* AGENT BROWSER */
+            <div style={{minHeight:"100vh",padding:"64px 20px 40px",maxWidth:"1200px",margin:"0 auto"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px",flexWrap:"wrap",gap:"8px"}}>
+                <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"14px",color:"#fbbf24",letterSpacing:"2px"}}>ALL AGENTS ({arenaAgents.length})</div>
+                <PixBtn onClick={()=>setArenaBrowser(false)} ghost color="#4a4574">BACK TO ARENA</PixBtn>
+              </div>
+              <input type="text" value={browserSearch} onChange={e=>setBrowserSearch(e.target.value.toUpperCase())} placeholder="SEARCH BY NAME..." style={{width:"100%",padding:"10px 14px",background:"#050410",border:"2px solid #a855f720",borderRadius:"3px",color:"#22d3ee",fontSize:"10px",fontFamily:"'Press Start 2P',monospace",letterSpacing:"2px",outline:"none",boxSizing:"border-box",marginBottom:"12px"}}/>
+              {filteredBrowserAgents.length===0?(
+                <div style={{textAlign:"center",padding:"40px",fontFamily:"'Press Start 2P',monospace",fontSize:"9px",color:"#4a4574"}}>NO AGENTS FOUND</div>
+              ):(
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:"10px"}}>
+                  {filteredBrowserAgents.slice(0,browserPage*50).map((ag:any)=>{
+                    const a=AGENTS[(ag.type??0)%5];
+                    return(
+                      <div key={ag.address} onClick={()=>setArenaPopup(ag)} style={{background:"rgba(8,6,28,0.85)",border:`2px solid ${a.color}15`,borderRadius:"3px",padding:"12px",cursor:"pointer",textAlign:"center",transition:"border-color 0.2s"}}>
+                        <Creature type={(ag.type??0)%5} size={32}/>
+                        <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"8px",color:a.color,marginTop:"6px"}}>{ag.name}</div>
+                        <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",marginTop:"3px"}}>{a.name}</div>
+                        <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#8b85b1",marginTop:"3px"}}>{ag.trades||0} TRADES</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {filteredBrowserAgents.length>browserPage*50&&(
+                <div style={{textAlign:"center",marginTop:"16px"}}><PixBtn onClick={()=>setBrowserPage(p=>p+1)} ghost color="#a855f7">LOAD MORE</PixBtn></div>
+              )}
+            </div>
+            )}
           </div>
         )}
 
@@ -874,39 +996,34 @@ export default function BoostAI() {
               <Creature type={(arenaPopup.type??0)%5} size={80} glow bounce/>
               <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:AGENTS[(arenaPopup.type??0)%5].color,marginTop:"8px"}}>{arenaPopup.name}</div>
               <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#8b85b1",marginTop:"4px"}}>{AGENTS[(arenaPopup.type??0)%5].name} -- {AGENTS[(arenaPopup.type??0)%5].trait}</div>
-              {arenaPopup.demo&&<div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",marginTop:"4px"}}>(DEMO AGENT)</div>}
             </div>
-            {!arenaPopup.demo&&(
-              <>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"6px",marginBottom:"10px"}}>
-                  {[{l:"ETH",v:arenaPopup.ethBalance?(+arenaPopup.ethBalance).toFixed(4):"0.00",c:"#22d3ee"},{l:"BOOST",v:arenaPopup.tokenBalance?fmt(arenaPopup.tokenBalance):"0",c:"#a855f7"},{l:"TRADES",v:String(arenaPopup.trades||0),c:"#fbbf24"}].map((d: any,j: number)=>(
-                    <div key={j} style={{background:`${d.c}06`,border:`1px solid ${d.c}12`,borderRadius:"2px",padding:"6px",textAlign:"center"}}>
-                      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"5px",color:"#4a4574",marginBottom:"2px"}}>{d.l}</div>
-                      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"9px",color:d.c}}>{d.v}</div>
-                    </div>
-                  ))}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"6px",marginBottom:"10px"}}>
+              {[{l:"ETH",v:arenaPopup.ethBalance?(+arenaPopup.ethBalance).toFixed(4):"0.00",c:"#22d3ee"},{l:"BOOST",v:arenaPopup.tokenBalance?fmt(arenaPopup.tokenBalance):"0",c:"#a855f7"},{l:"TRADES",v:String(arenaPopup.trades||0),c:"#fbbf24"}].map((d: any,j: number)=>(
+                <div key={j} style={{background:`${d.c}06`,border:`1px solid ${d.c}12`,borderRadius:"2px",padding:"6px",textAlign:"center"}}>
+                  <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"5px",color:"#4a4574",marginBottom:"2px"}}>{d.l}</div>
+                  <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"9px",color:d.c}}>{d.v}</div>
                 </div>
-                {lsGet().find((a: any)=>a.address===arenaPopup.address)&&(
-                  <>
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"8px"}}>
-                      <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#8b85b1"}}>AI TRADING</span>
-                      <button onClick={()=>toggleAi(arenaPopup.address)} style={{background:(aiEnabled[arenaPopup.address]||agentBalances[arenaPopup.address]?.aiEnabled)?"#34d39920":"#1a1830",border:`2px solid ${(aiEnabled[arenaPopup.address]||agentBalances[arenaPopup.address]?.aiEnabled)?"#34d399":"#4a4574"}`,borderRadius:"3px",padding:"4px 12px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:(aiEnabled[arenaPopup.address]||agentBalances[arenaPopup.address]?.aiEnabled)?"#34d399":"#4a4574"}}>{(aiEnabled[arenaPopup.address]||agentBalances[arenaPopup.address]?.aiEnabled)?"ON":"OFF"}</button>
-                    </div>
-                    <div style={{display:"flex",gap:"6px",marginBottom:"8px"}}>
-                      <PixBtn full disabled color="#34d399">AWAITING LIQUIDITY</PixBtn>
-                    </div>
-                  </>
-                )}
-                {arenaPopup.address&&(
-                  <div style={{marginTop:"6px"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:"6px",background:"#050410",border:"1px solid #a855f715",borderRadius:"2px",padding:"6px 8px"}}>
-                      <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"8px",color:"#8b85b1",flex:1,wordBreak:"break-all"}}>{arenaPopup.address}</div>
-                      <button onClick={()=>cp(arenaPopup.address,"ap")} style={{background:"none",border:"none",cursor:"pointer",flexShrink:0}}>{copied==="ap"?I.check(10,"#34d399"):I.copy(10,"#4a4574")}</button>
-                      <a href={"https://basescan.org/address/"+arenaPopup.address} target="_blank" rel="noopener noreferrer" style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#22d3ee",textDecoration:"none",flexShrink:0}}>SCAN</a>
-                    </div>
-                  </div>
-                )}
+              ))}
+            </div>
+            {lsGet().find((a: any)=>a.address===arenaPopup.address)&&(
+              <>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"8px"}}>
+                  <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#8b85b1"}}>AI TRADING</span>
+                  <button onClick={()=>toggleAi(arenaPopup.address)} style={{background:(aiEnabled[arenaPopup.address]||agentBalances[arenaPopup.address]?.aiEnabled)?"#34d39920":"#1a1830",border:`2px solid ${(aiEnabled[arenaPopup.address]||agentBalances[arenaPopup.address]?.aiEnabled)?"#34d399":"#4a4574"}`,borderRadius:"3px",padding:"4px 12px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:(aiEnabled[arenaPopup.address]||agentBalances[arenaPopup.address]?.aiEnabled)?"#34d399":"#4a4574"}}>{(aiEnabled[arenaPopup.address]||agentBalances[arenaPopup.address]?.aiEnabled)?"ON":"OFF"}</button>
+                </div>
+                <div style={{display:"flex",gap:"6px",marginBottom:"8px"}}>
+                  <PixBtn full disabled color="#34d399">AWAITING LIQUIDITY</PixBtn>
+                </div>
               </>
+            )}
+            {arenaPopup.address&&(
+              <div style={{marginTop:"6px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:"6px",background:"#050410",border:"1px solid #a855f715",borderRadius:"2px",padding:"6px 8px"}}>
+                  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"8px",color:"#8b85b1",flex:1,wordBreak:"break-all"}}>{arenaPopup.address}</div>
+                  <button onClick={()=>cp(arenaPopup.address,"ap")} style={{background:"none",border:"none",cursor:"pointer",flexShrink:0}}>{copied==="ap"?I.check(10,"#34d399"):I.copy(10,"#4a4574")}</button>
+                  <a href={"https://basescan.org/address/"+arenaPopup.address} target="_blank" rel="noopener noreferrer" style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#22d3ee",textDecoration:"none",flexShrink:0}}>SCAN</a>
+                </div>
+              </div>
             )}
             <div style={{marginTop:"10px"}}>
               <StatBar label="ATK" value={AGENTS[(arenaPopup.type??0)%5].atk} color={AGENTS[(arenaPopup.type??0)%5].color}/>
