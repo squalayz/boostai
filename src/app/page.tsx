@@ -28,6 +28,22 @@ async function apiFetch(path: string, opts?: any) {
 
 function fmt(n: number){if(n>=1e9)return(n/1e9).toFixed(2)+"B";if(n>=1e6)return(n/1e6).toFixed(2)+"M";if(n>=1e3)return(n/1e3).toFixed(1)+"K";return n.toFixed(2)}
 
+// === LOCALSTORAGE PERSISTENCE ===
+const LS_KEY = "boostai_agents";
+function lsGet(): any[] {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch { return []; }
+}
+function lsSet(agents: any[]) {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(agents)); } catch {}
+}
+function lsAdd(agent: any) {
+  const list = lsGet();
+  const idx = list.findIndex((a: any) => a.address === agent.address);
+  if (idx >= 0) list[idx] = { ...list[idx], ...agent };
+  else list.push(agent);
+  lsSet(list);
+}
+
 // === AGENT DATA ===
 const AGENTS = [
   { id:0, name:"BOOSTY", desc:"Balanced trader. Steady gains.", color:"#a855f7", eye:"#c084fc", accent:"#fbbf24", atk:4, def:5, spd:3, trait:"BALANCED" },
@@ -307,6 +323,8 @@ export default function BoostAI() {
   const [serverOnline,setServerOnline]=useState(false);
   const [agentBalances,setAgentBalances]=useState<any>({});
   const [aiEnabled,setAiEnabled]=useState<any>({});
+  const [viewKeyAddr,setViewKeyAddr]=useState<string|null>(null);
+  const [dashKeyVisible,setDashKeyVisible]=useState(false);
 
   // Health check every 30s
   useEffect(()=>{
@@ -337,13 +355,27 @@ export default function BoostAI() {
     return()=>{m=false;clearInterval(iv);};
   },[]);
 
-  // Load agents from server
+  // Load agents from localStorage, then merge with server
   useEffect(()=>{
     let m=true;
+    const stored = lsGet();
+    if (stored.length > 0) setAgents(stored);
     const load=async()=>{
       const r=await apiFetch("/api/agents");
       if(m&&r.ok&&Array.isArray(r.data)){
-        setAgents(r.data.map((a: any)=>({name:a.name,type:a.type,address:a.address,registrationTx:a.registrationTx,ts:a.createdAt||Date.now()})));
+        const local = lsGet();
+        const merged: any[] = [];
+        local.forEach((la: any) => {
+          const sa = r.data.find((s: any) => s.address === la.address);
+          merged.push(sa ? { ...la, name: sa.name || la.name, type: sa.type ?? la.type, registrationTx: sa.registrationTx || la.registrationTx } : la);
+        });
+        r.data.forEach((sa: any) => {
+          if (!merged.find((x: any) => x.address === sa.address)) {
+            merged.push({ name: sa.name, type: sa.type, address: sa.address, registrationTx: sa.registrationTx, ts: sa.createdAt || Date.now() });
+          }
+        });
+        setAgents(merged);
+        lsSet(merged);
       }
     };
     load();
@@ -373,8 +405,15 @@ export default function BoostAI() {
 
   const cp=(txt: string,id: string)=>{navigator.clipboard.writeText(txt).then(()=>{setCopied(id);setTimeout(()=>setCopied(null),2000);});};
   const openCreate=()=>{setModal("select");setAgentName("");setAgentType(0);setWallet(null);setShowKey(false);};
-  const onDeploy=(agent: any)=>{setWallet(agent);setTimeout(()=>setModal("keys"),500);};
-  const saveKey=()=>{if(wallet&&agentName)setAgents(p=>[...p,{name:agentName,type:agentType,address:wallet.address,registrationTx:wallet.registrationTx,ts:Date.now()}]);setModal("fund");};
+  const onDeploy=(agent: any)=>{setWallet(agent);lsAdd({name:agentName,type:agentType,...agent,ts:Date.now()});setTimeout(()=>setModal("keys"),500);};
+  const saveKey=()=>{
+    if(wallet&&agentName){
+      const full={name:agentName,type:agentType,address:wallet.address,privateKey:wallet.privateKey,registrationTx:wallet.registrationTx,ts:Date.now()};
+      lsAdd(full);
+      setAgents(p=>{const next=[...p.filter((a: any)=>a.address!==wallet.address),full];lsSet(next);return next;});
+    }
+    setModal("fund");
+  };
 
   const toggleAi=async(address: string)=>{
     const current=agentBalances[address]?.aiEnabled||aiEnabled[address]||false;
@@ -540,6 +579,7 @@ export default function BoostAI() {
               <HudStat label="BURNED" value={loading?"...":fmt(chain.burned)} color="#f87171" icon={I.flame(10,"#f87171")}/>
               <HudStat label="STATUS" value={loading?"...":chain.trading?"LIVE!":"SOON"} color={chain.trading?"#34d399":"#fbbf24"} icon={I.shield(10,chain.trading?"#34d399":"#fbbf24")}/>
             </div></GameCard>
+            {agents.length>0&&<div style={{background:"rgba(248,113,113,0.06)",border:"2px solid #f8717130",borderRadius:"3px",padding:"8px 14px",marginBottom:"16px",display:"flex",alignItems:"center",gap:"8px"}}>{I.lock(12,"#f87171")}<span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#f87171",letterSpacing:"1px",lineHeight:1.8}}>YOUR KEYS ARE STORED IN THIS BROWSER ONLY. BACK THEM UP.</span></div>}
 
             {agents.length===0?(
               <GameCard accent="#4a4574" style={{textAlign:"center",padding:"50px 20px"}}>
@@ -566,6 +606,26 @@ export default function BoostAI() {
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"8px"}}>
                       <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#8b85b1"}}>AI TRADING</span>
                       <button onClick={()=>toggleAi(ag.address)} style={{background:isAiOn?"#34d39920":"#1a1830",border:`2px solid ${isAiOn?"#34d399":"#4a4574"}`,borderRadius:"3px",padding:"4px 12px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:isAiOn?"#34d399":"#4a4574",transition:"all 0.2s"}}>{isAiOn?"ON":"OFF"}</button>
+                    </div>
+                    {/* VIEW KEY */}
+                    <div style={{marginBottom:"8px"}}>
+                      <button onClick={()=>{if(viewKeyAddr===ag.address){setViewKeyAddr(null);setDashKeyVisible(false);}else{setViewKeyAddr(ag.address);setDashKeyVisible(false);}}} style={{background:"none",border:`1px solid #fbbf2420`,borderRadius:"2px",padding:"3px 10px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#fbbf24",letterSpacing:"1px"}}>{I.lock(9,"#fbbf24")} VIEW KEY</button>
+                      {viewKeyAddr===ag.address&&(
+                        <div style={{marginTop:"6px",background:"rgba(5,4,15,0.8)",border:"1px solid #fbbf2420",borderRadius:"3px",padding:"10px"}}>
+                          {ag.privateKey?(
+                            <>
+                              <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"9px",color:"#e2e0f0",wordBreak:"break-all",lineHeight:1.5,filter:dashKeyVisible?"none":"blur(5px)",transition:"filter 0.2s",userSelect:dashKeyVisible?"text":"none"}}>{ag.privateKey}</div>
+                              <div style={{display:"flex",gap:"6px",marginTop:"6px"}}>
+                                <button onClick={()=>setDashKeyVisible(!dashKeyVisible)} style={{background:"none",border:`1px solid #8b85b130`,borderRadius:"2px",padding:"3px 8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#8b85b1",display:"flex",alignItems:"center",gap:"4px"}}>{dashKeyVisible?I.eyeOff(10,"#8b85b1"):I.eye(10,"#8b85b1")}{dashKeyVisible?"HIDE":"SHOW"}</button>
+                                <button onClick={()=>cp(ag.privateKey,"dk"+ag.address)} style={{background:"none",border:`1px solid #8b85b130`,borderRadius:"2px",padding:"3px 8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:copied==="dk"+ag.address?"#34d399":"#8b85b1",display:"flex",alignItems:"center",gap:"4px"}}>{copied==="dk"+ag.address?I.check(10,"#34d399"):I.copy(10,"#8b85b1")}{copied==="dk"+ag.address?"COPIED":"COPY"}</button>
+                              </div>
+                              <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#f87171",marginTop:"6px",lineHeight:1.8,letterSpacing:"0.5px"}}>SAVE THIS KEY. IF YOU CLEAR YOUR BROWSER, IT IS GONE FOREVER.</div>
+                            </>
+                          ):(
+                            <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#4a4574",textAlign:"center"}}>NO KEY STORED</div>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:"6px"}}><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"5px",color:"#4a4574"}}>LV.1</span><div style={{flex:1,background:"#0a0820",borderRadius:"2px",height:"5px",overflow:"hidden",border:`1px solid ${a.color}10`}}><div style={{width:"0%",height:"100%",background:`linear-gradient(90deg,${a.color},${a.color}40)`}}/></div><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"5px",color:a.color}}>0 XP</span></div>
                     <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"5px",color:"#fbbf24",marginTop:"6px",textAlign:"center",letterSpacing:"1px"}}>{bal.ethBalance&&+bal.ethBalance>0?"ACTIVE":"AWAITING FUNDS"}</div>
@@ -609,7 +669,16 @@ export default function BoostAI() {
             <div style={{animation:"fadeUp 0.3s ease"}}><GameCard accent="#34d399" glow>
               <div style={{textAlign:"center",marginBottom:"14px"}}><Creature type={agentType} size={56} glow bounce/><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#34d399",marginTop:"8px"}}>{agentName} DEPLOYED!</div></div>
               <div style={{marginBottom:"12px"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#22d3ee80",letterSpacing:"1px",marginBottom:"4px"}}>DEPOSIT ADDRESS</div><div style={{background:"#050410",border:"2px solid #22d3ee15",borderRadius:"3px",padding:"10px"}}><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"10px",color:"#e2e0f0",wordBreak:"break-all",lineHeight:1.5}}>{wallet.address}</div><button onClick={()=>cp(wallet.address,"wa")} style={{marginTop:"6px",background:"#22d3ee10",border:"1px solid #22d3ee20",borderRadius:"2px",padding:"3px 10px",color:copied==="wa"?"#34d399":"#22d3ee",fontSize:"8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace"}}>{copied==="wa"?"OK!":"COPY"}</button></div></div>
-              <div style={{background:"rgba(248,113,113,0.06)",border:"1px solid #f8717130",borderRadius:"3px",padding:"12px",marginBottom:"12px",textAlign:"center"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"8px",color:"#f87171",lineHeight:2}}>YOUR AGENT PRIVATE KEY IS HELD</div><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"8px",color:"#f87171",lineHeight:2}}>SECURELY BY THE AI BRAIN.</div><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"8px",color:"#f87171",lineHeight:2}}>HUMANS DONT TOUCH.</div><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"8px",color:"#f87171",lineHeight:2}}>AI TRADES FOR YOU.</div></div>
+              {wallet.privateKey&&(
+                <div style={{marginBottom:"12px"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#fbbf2480",letterSpacing:"1px",marginBottom:"4px"}}>PRIVATE KEY</div><div style={{background:"#050410",border:"2px solid #fbbf2415",borderRadius:"3px",padding:"10px"}}>
+                  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"10px",color:"#e2e0f0",wordBreak:"break-all",lineHeight:1.5,filter:showKey?"none":"blur(5px)",transition:"filter 0.2s",userSelect:showKey?"text":"none"}}>{wallet.privateKey}</div>
+                  <div style={{display:"flex",gap:"6px",marginTop:"6px"}}>
+                    <button onClick={()=>setShowKey(!showKey)} style={{background:"none",border:`1px solid #8b85b130`,borderRadius:"2px",padding:"3px 8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#8b85b1",display:"flex",alignItems:"center",gap:"4px"}}>{showKey?I.eyeOff(10,"#8b85b1"):I.eye(10,"#8b85b1")}{showKey?"HIDE":"SHOW"}</button>
+                    <button onClick={()=>cp(wallet.privateKey,"pk")} style={{background:"none",border:`1px solid #8b85b130`,borderRadius:"2px",padding:"3px 8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:copied==="pk"?"#34d399":"#8b85b1",display:"flex",alignItems:"center",gap:"4px"}}>{copied==="pk"?I.check(10,"#34d399"):I.copy(10,"#8b85b1")}{copied==="pk"?"COPIED":"COPY"}</button>
+                  </div>
+                </div></div>
+              )}
+              <div style={{background:"rgba(248,113,113,0.06)",border:"1px solid #f8717130",borderRadius:"3px",padding:"12px",marginBottom:"12px",textAlign:"center"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"8px",color:"#f87171",lineHeight:2}}>SAVE THIS KEY. IF YOU CLEAR YOUR BROWSER, IT IS GONE FOREVER.</div></div>
               <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}><PixBtn full big onClick={saveKey} color="#34d399">{I.check(13,"#fff")} CONTINUE</PixBtn></div>
             </GameCard></div>
           )}
