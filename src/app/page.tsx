@@ -438,7 +438,7 @@ export default function BoostAI() {
         @keyframes popIn{from{opacity:0;transform:scale(0.5)}to{opacity:1;transform:scale(1)}}
         @keyframes bounce{0%,20%,50%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}60%{transform:translateY(-3px)}}
         @keyframes scanline{0%{transform:translateY(-100vh)}100%{transform:translateY(100vh)}}
-        @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+        @keyframes electricPulse{0%{text-shadow:0 0 10px #22d3ee,0 0 20px #a855f7,0 0 40px #22d3ee80;opacity:1}50%{text-shadow:0 0 20px #22d3ee,0 0 40px #a855f7,0 0 80px #22d3ee,0 0 100px #a855f740;opacity:0.9}100%{text-shadow:0 0 10px #22d3ee,0 0 20px #a855f7,0 0 40px #22d3ee80;opacity:1}}
         @keyframes agentWake{0%{opacity:0;transform:scale(0.4) translateY(30px);filter:brightness(0)}50%{opacity:0.7;transform:scale(0.95) translateY(-2px);filter:brightness(1.4)}70%{opacity:1;transform:scale(1.05) translateY(-5px);filter:brightness(1.1)}100%{opacity:1;transform:scale(1) translateY(0);filter:brightness(1)}}
         @keyframes agentGlowPulse{0%{filter:drop-shadow(0 0 0px transparent)}50%{filter:drop-shadow(0 0 24px var(--glow-color))}100%{filter:drop-shadow(0 0 10px var(--glow-color))}}
         @keyframes agentDrift{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-60px) scale(0.7)}}
@@ -497,7 +497,7 @@ export default function BoostAI() {
             <div style={{marginTop:"14px",animation:"fadeUp 0.5s ease 0.15s both"}}>
               <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"10px",color:"#030210",background:"linear-gradient(90deg,#fbbf24,#f59e0b)",padding:"6px 18px",borderRadius:"3px",letterSpacing:"2px",display:"inline-block",boxShadow:"0 0 20px #fbbf2440"}}>LAUNCHING SOON</span>
             </div>
-            <p style={{fontSize:"clamp(12px,1.5vw,16px)",color:"#8b85b1",maxWidth:"500px",lineHeight:1.7,margin:"18px 0 0",animation:"fadeUp 0.5s ease 0.2s both"}}>Choose your AI creature. Deploy on Base. It trades <span style={{fontWeight:700,background:"linear-gradient(90deg, #a855f7, #22d3ee, #fbbf24, #a855f7)",backgroundSize:"200% 100%",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",animation:"shimmer 2s linear infinite",textShadow:"none"}}>$BOOST</span> autonomously. Collect the loot.</p>
+            <p style={{fontSize:"clamp(12px,1.5vw,16px)",color:"#8b85b1",maxWidth:"500px",lineHeight:1.7,margin:"18px 0 0",animation:"fadeUp 0.5s ease 0.2s both"}}>Choose your AI creature. Deploy on Base. It trades <span style={{fontWeight:700,color:"#22d3ee",textShadow:"0 0 10px #22d3ee, 0 0 20px #a855f7, 0 0 40px #22d3ee80, 0 0 60px #a855f740",animation:"electricPulse 1.5s ease-in-out infinite",letterSpacing:"2px"}}>$BOOST</span> autonomously. Collect the loot.</p>
             <div style={{display:"flex",gap:"12px",marginTop:"28px",animation:"fadeUp 0.5s ease 0.3s both",flexWrap:"wrap",justifyContent:"center"}}>
               <PixBtn onClick={openCreate} color="#a855f7" big>{I.bolt(13,"#fff")} CHOOSE AGENT</PixBtn>
               <PixBtn onClick={()=>setView("dashboard")} color="#22d3ee" big ghost>{I.shield(13,"#22d3ee")} DASHBOARD</PixBtn>
