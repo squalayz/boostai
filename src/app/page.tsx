@@ -395,56 +395,6 @@ export default function BoostAI() {
           </footer>
         </>)}
 
-        {/* === MODAL === */}
-        {modal&&(
-          <div style={{position:"fixed",inset:0,zIndex:60,background:"rgba(3,2,16,0.96)",backdropFilter:"blur(12px)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px",animation:"fadeIn 0.2s ease",overflowY:"auto"}}>
-            <div style={{maxWidth:"580px",width:"100%",position:"relative",margin:"auto"}}>
-              <button onClick={()=>setModal(null)} style={{position:"absolute",top:"-32px",right:"0",background:"none",border:"none",cursor:"pointer",zIndex:5}}>{I.x(18,"#4a4574")}</button>
-
-              {modal==="select"&&(
-                <div style={{animation:"fadeUp 0.3s ease"}}><GameCard accent="#a855f7" glow>
-                  <div style={{textAlign:"center",marginBottom:"20px"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"14px",color:"#fbbf24",textShadow:"0 0 14px #fbbf2430"}}>CHOOSE YOUR AGENT</div><p style={{fontSize:"11px",color:"#8b85b1",marginTop:"6px"}}>Each creature has unique trading DNA</p></div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:"8px",marginBottom:"16px"}}>
-                    {AGENTS.map(a=>(<div key={a.id} onClick={()=>setAgentType(a.id)} style={{background:agentType===a.id?`${a.color}12`:"rgba(5,4,15,0.5)",border:`2px solid ${agentType===a.id?a.color:a.color+"15"}`,borderRadius:"3px",padding:"12px 8px",cursor:"pointer",transition:"all 0.2s",textAlign:"center",boxShadow:agentType===a.id?`0 0 24px ${a.color}15,inset 0 0 20px ${a.color}06`:"none"}}>
-                      <Creature type={a.id} size={44} glow={agentType===a.id} bounce={agentType===a.id}/>
-                      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"8px",color:a.color,marginTop:"6px",letterSpacing:"1px"}}>{a.name}</div>
-                      <div style={{fontSize:"9px",color:"#8b85b1",marginTop:"3px",lineHeight:1.4}}>{a.desc}</div>
-                      <div style={{marginTop:"6px"}}><StatBar label="ATK" value={a.atk} color={a.color}/><StatBar label="DEF" value={a.def} color={a.color}/><StatBar label="SPD" value={a.spd} color={a.color}/></div>
-                    </div>))}
-                  </div>
-                  <div style={{marginBottom:"14px"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",letterSpacing:"2px",marginBottom:"4px"}}>CALLSIGN</div>
-                    <input type="text" value={agentName} onChange={e=>setAgentName(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g,"").slice(0,16))} placeholder="AGENT-001" style={{width:"100%",padding:"10px 14px",background:"#050410",border:"2px solid #a855f720",borderRadius:"3px",color:"#22d3ee",fontSize:"13px",fontFamily:"'Press Start 2P',monospace",letterSpacing:"2px",textAlign:"center",outline:"none",boxSizing:"border-box"}}/>
-                  </div>
-                  <PixBtn full big onClick={()=>setModal("deploy")} disabled={agentName.length<3} color="#a855f7">{I.bolt(13,agentName.length>=3?"#fff":"#555")} DEPLOY!</PixBtn>
-                </GameCard></div>
-              )}
-
-              {modal==="deploy"&&<div style={{animation:"fadeUp 0.3s ease"}}><DeployTerm name={agentName} type={agentType} onDone={onDeploy}/></div>}
-
-              {modal==="keys"&&wallet&&(
-                <div style={{animation:"fadeUp 0.3s ease"}}><GameCard accent="#34d399" glow>
-                  <div style={{textAlign:"center",marginBottom:"14px"}}><Creature type={agentType} size={56} glow bounce/><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#34d399",marginTop:"8px"}}>{agentName} DEPLOYED!</div><p style={{fontSize:"9px",color:"#f87171",marginTop:"6px",fontFamily:"'Press Start 2P',monospace"}}>SAVE YOUR KEY NOW</p></div>
-                  <div style={{marginBottom:"12px"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#22d3ee80",letterSpacing:"1px",marginBottom:"4px"}}>ADDRESS</div><div style={{background:"#050410",border:"2px solid #22d3ee15",borderRadius:"3px",padding:"10px"}}><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"10px",color:"#e2e0f0",wordBreak:"break-all",lineHeight:1.5}}>{wallet.addr}</div><button onClick={()=>cp(wallet.addr,"wa")} style={{marginTop:"6px",background:"#22d3ee10",border:"1px solid #22d3ee20",borderRadius:"2px",padding:"3px 10px",color:copied==="wa"?"#34d399":"#22d3ee",fontSize:"8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace"}}>{copied==="wa"?"OK!":"COPY"}</button></div></div>
-                  <div style={{marginBottom:"16px"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#f8717180",letterSpacing:"1px",marginBottom:"4px"}}>PRIVATE KEY</div><div style={{background:"rgba(60,10,20,0.2)",border:"2px solid #f8717120",borderRadius:"3px",padding:"10px"}}><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"10px",color:"#cc8888",wordBreak:"break-all",lineHeight:1.5,filter:showKey?"none":"blur(5px)",userSelect:showKey?"all":"none",transition:"filter 0.2s"}}>{wallet.key}</div><div style={{display:"flex",gap:"6px",marginTop:"6px"}}><button onClick={()=>setShowKey(!showKey)} style={{background:"#f8717110",border:"1px solid #f8717120",borderRadius:"2px",padding:"3px 10px",color:"#f87171",fontSize:"8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",display:"flex",alignItems:"center",gap:"4px"}}>{showKey?I.eyeOff(10,"#f87171"):I.eye(10,"#f87171")} {showKey?"HIDE":"SHOW"}</button><button onClick={()=>cp(wallet.key,"wk")} style={{background:"#f8717110",border:"1px solid #f8717120",borderRadius:"2px",padding:"3px 10px",color:copied==="wk"?"#34d399":"#f87171",fontSize:"8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace"}}>{copied==="wk"?"OK!":"COPY"}</button></div></div></div>
-                  <div style={{background:"rgba(52,211,153,0.06)",border:"1px solid #34d39930",borderRadius:"3px",padding:"10px",marginBottom:"12px",textAlign:"center"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399",lineHeight:1.8}}>Keys are generated 100% in your browser.</div><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399",lineHeight:1.8}}>No keys are ever sent to any server.</div><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399",lineHeight:1.8}}>Verify in source code.</div></div>
-                  <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}><PixBtn full big onClick={saveKey} color="#34d399">{I.check(13,"#fff")} KEY SAVED</PixBtn></div>
-                  <div style={{display:"flex",gap:"8px",justifyContent:"center",flexWrap:"wrap"}}><a href="https://github.com/user/boostai" target="_blank" rel="noopener noreferrer" style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#a855f7",textDecoration:"none",border:"1px solid #a855f730",borderRadius:"2px",padding:"4px 10px",background:"#a855f708"}}>VIEW SOURCE</a><a href="https://github.com/user/boostai" target="_blank" rel="noopener noreferrer" style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#22d3ee",textDecoration:"none",border:"1px solid #22d3ee30",borderRadius:"2px",padding:"4px 10px",background:"#22d3ee08"}}>OPEN SOURCE - VERIFY ON GITHUB</a></div>
-                </GameCard></div>
-              )}
-
-              {modal==="fund"&&wallet&&(
-                <div style={{animation:"fadeUp 0.3s ease"}}><GameCard accent="#22d3ee" glow>
-                  <div style={{textAlign:"center",marginBottom:"14px"}}><Creature type={agentType} size={56} glow bounce/><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#fbbf24",marginTop:"8px"}}>POWER UP!</div><p style={{fontSize:"10px",color:"#8b85b1",marginTop:"4px"}}>Send ETH on Base to begin</p></div>
-                  <div style={{background:"#050410",border:"2px solid #22d3ee15",borderRadius:"3px",padding:"14px",textAlign:"center",marginBottom:"14px"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",letterSpacing:"2px",marginBottom:"6px"}}>DEPOSIT (BASE)</div><div onClick={()=>cp(wallet.addr,"fa")} style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"10px",color:"#22d3ee",cursor:"pointer",wordBreak:"break-all",lineHeight:1.5}}>{wallet.addr}</div>{copied==="fa"&&<div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399",marginTop:"4px"}}>COPIED!</div>}</div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"16px"}}>{[{l:"TEST",v:"0.01 ETH",s:"Try it"},{l:"GO BIG",v:"0.1 ETH",s:"Recommended"}].map((o,i)=>(<div key={i} style={{background:"rgba(8,6,28,0.6)",border:"2px solid #a855f712",borderRadius:"3px",padding:"10px",textAlign:"center"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",marginBottom:"4px"}}>{o.l}</div><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#22d3ee"}}>{o.v}</div><div style={{fontSize:"9px",color:"#4a4574",marginTop:"2px"}}>{o.s}</div></div>))}</div>
-                  <PixBtn full big onClick={()=>{setModal(null);setView("dashboard");}} color="#22d3ee">{I.shield(13,"#fff")} GO TO HQ</PixBtn>
-                  <div style={{textAlign:"center",marginTop:"12px"}}><a href="https://github.com/user/boostai" target="_blank" rel="noopener noreferrer" style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#22d3ee",textDecoration:"none",border:"1px solid #22d3ee30",borderRadius:"2px",padding:"4px 10px",background:"#22d3ee08"}}>OPEN SOURCE - VERIFY ON GITHUB</a></div>
-                </GameCard></div>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* === DASHBOARD === */}
         {view==="dashboard"&&!modal&&(
           <div style={{minHeight:"100vh",padding:"64px 20px 40px",maxWidth:"1000px",margin:"0 auto"}}>
@@ -487,6 +437,57 @@ export default function BoostAI() {
         )}
       </div>
     </div>
+
+    {/* === MODAL (top-level for proper z-index on mobile) === */}
+    {modal&&(
+      <div style={{position:"fixed",inset:0,zIndex:999,background:"rgba(3,2,16,0.96)",backdropFilter:"blur(12px)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px",animation:"fadeIn 0.2s ease",overflowY:"auto"}}>
+        <div style={{maxWidth:"580px",width:"100%",position:"relative",margin:"auto"}}>
+          <button onClick={()=>setModal(null)} style={{position:"absolute",top:"-32px",right:"0",background:"none",border:"none",cursor:"pointer",zIndex:5}}>{I.x(18,"#4a4574")}</button>
+
+          {modal==="select"&&(
+            <div style={{animation:"fadeUp 0.3s ease"}}><GameCard accent="#a855f7" glow>
+              <div style={{textAlign:"center",marginBottom:"20px"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"14px",color:"#fbbf24",textShadow:"0 0 14px #fbbf2430"}}>CHOOSE YOUR AGENT</div><p style={{fontSize:"11px",color:"#8b85b1",marginTop:"6px"}}>Each creature has unique trading DNA</p></div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:"8px",marginBottom:"16px"}}>
+                {AGENTS.map(a=>(<div key={a.id} onClick={()=>setAgentType(a.id)} style={{background:agentType===a.id?`${a.color}12`:"rgba(5,4,15,0.5)",border:`2px solid ${agentType===a.id?a.color:a.color+"15"}`,borderRadius:"3px",padding:"12px 8px",cursor:"pointer",transition:"all 0.2s",textAlign:"center",boxShadow:agentType===a.id?`0 0 24px ${a.color}15,inset 0 0 20px ${a.color}06`:"none"}}>
+                  <Creature type={a.id} size={44} glow={agentType===a.id} bounce={agentType===a.id}/>
+                  <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"8px",color:a.color,marginTop:"6px",letterSpacing:"1px"}}>{a.name}</div>
+                  <div style={{fontSize:"9px",color:"#8b85b1",marginTop:"3px",lineHeight:1.4}}>{a.desc}</div>
+                  <div style={{marginTop:"6px"}}><StatBar label="ATK" value={a.atk} color={a.color}/><StatBar label="DEF" value={a.def} color={a.color}/><StatBar label="SPD" value={a.spd} color={a.color}/></div>
+                </div>))}
+              </div>
+              <div style={{marginBottom:"14px"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",letterSpacing:"2px",marginBottom:"4px"}}>CALLSIGN</div>
+                <input type="text" value={agentName} onChange={e=>setAgentName(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g,"").slice(0,16))} placeholder="AGENT-001" style={{width:"100%",padding:"10px 14px",background:"#050410",border:"2px solid #a855f720",borderRadius:"3px",color:"#22d3ee",fontSize:"13px",fontFamily:"'Press Start 2P',monospace",letterSpacing:"2px",textAlign:"center",outline:"none",boxSizing:"border-box"}}/>
+              </div>
+              <PixBtn full big onClick={()=>setModal("deploy")} disabled={agentName.length<3} color="#a855f7">{I.bolt(13,agentName.length>=3?"#fff":"#555")} DEPLOY!</PixBtn>
+            </GameCard></div>
+          )}
+
+          {modal==="deploy"&&<div style={{animation:"fadeUp 0.3s ease"}}><DeployTerm name={agentName} type={agentType} onDone={onDeploy}/></div>}
+
+          {modal==="keys"&&wallet&&(
+            <div style={{animation:"fadeUp 0.3s ease"}}><GameCard accent="#34d399" glow>
+              <div style={{textAlign:"center",marginBottom:"14px"}}><Creature type={agentType} size={56} glow bounce/><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#34d399",marginTop:"8px"}}>{agentName} DEPLOYED!</div><p style={{fontSize:"9px",color:"#f87171",marginTop:"6px",fontFamily:"'Press Start 2P',monospace"}}>SAVE YOUR KEY NOW</p></div>
+              <div style={{marginBottom:"12px"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#22d3ee80",letterSpacing:"1px",marginBottom:"4px"}}>ADDRESS</div><div style={{background:"#050410",border:"2px solid #22d3ee15",borderRadius:"3px",padding:"10px"}}><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"10px",color:"#e2e0f0",wordBreak:"break-all",lineHeight:1.5}}>{wallet.addr}</div><button onClick={()=>cp(wallet.addr,"wa")} style={{marginTop:"6px",background:"#22d3ee10",border:"1px solid #22d3ee20",borderRadius:"2px",padding:"3px 10px",color:copied==="wa"?"#34d399":"#22d3ee",fontSize:"8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace"}}>{copied==="wa"?"OK!":"COPY"}</button></div></div>
+              <div style={{marginBottom:"16px"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#f8717180",letterSpacing:"1px",marginBottom:"4px"}}>PRIVATE KEY</div><div style={{background:"rgba(60,10,20,0.2)",border:"2px solid #f8717120",borderRadius:"3px",padding:"10px"}}><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"10px",color:"#cc8888",wordBreak:"break-all",lineHeight:1.5,filter:showKey?"none":"blur(5px)",userSelect:showKey?"all":"none",transition:"filter 0.2s"}}>{wallet.key}</div><div style={{display:"flex",gap:"6px",marginTop:"6px"}}><button onClick={()=>setShowKey(!showKey)} style={{background:"#f8717110",border:"1px solid #f8717120",borderRadius:"2px",padding:"3px 10px",color:"#f87171",fontSize:"8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",display:"flex",alignItems:"center",gap:"4px"}}>{showKey?I.eyeOff(10,"#f87171"):I.eye(10,"#f87171")} {showKey?"HIDE":"SHOW"}</button><button onClick={()=>cp(wallet.key,"wk")} style={{background:"#f8717110",border:"1px solid #f8717120",borderRadius:"2px",padding:"3px 10px",color:copied==="wk"?"#34d399":"#f87171",fontSize:"8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace"}}>{copied==="wk"?"OK!":"COPY"}</button></div></div></div>
+              <div style={{background:"rgba(52,211,153,0.06)",border:"1px solid #34d39930",borderRadius:"3px",padding:"10px",marginBottom:"12px",textAlign:"center"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399",lineHeight:1.8}}>Keys are generated 100% in your browser.</div><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399",lineHeight:1.8}}>No keys are ever sent to any server.</div><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399",lineHeight:1.8}}>Verify in source code.</div></div>
+              <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}><PixBtn full big onClick={saveKey} color="#34d399">{I.check(13,"#fff")} KEY SAVED</PixBtn></div>
+              <div style={{display:"flex",gap:"8px",justifyContent:"center",flexWrap:"wrap"}}><a href="https://github.com/user/boostai" target="_blank" rel="noopener noreferrer" style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#a855f7",textDecoration:"none",border:"1px solid #a855f730",borderRadius:"2px",padding:"4px 10px",background:"#a855f708"}}>VIEW SOURCE</a><a href="https://github.com/user/boostai" target="_blank" rel="noopener noreferrer" style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#22d3ee",textDecoration:"none",border:"1px solid #22d3ee30",borderRadius:"2px",padding:"4px 10px",background:"#22d3ee08"}}>OPEN SOURCE - VERIFY ON GITHUB</a></div>
+            </GameCard></div>
+          )}
+
+          {modal==="fund"&&wallet&&(
+            <div style={{animation:"fadeUp 0.3s ease"}}><GameCard accent="#22d3ee" glow>
+              <div style={{textAlign:"center",marginBottom:"14px"}}><Creature type={agentType} size={56} glow bounce/><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#fbbf24",marginTop:"8px"}}>POWER UP!</div><p style={{fontSize:"10px",color:"#8b85b1",marginTop:"4px"}}>Send ETH on Base to begin</p></div>
+              <div style={{background:"#050410",border:"2px solid #22d3ee15",borderRadius:"3px",padding:"14px",textAlign:"center",marginBottom:"14px"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",letterSpacing:"2px",marginBottom:"6px"}}>DEPOSIT (BASE)</div><div onClick={()=>cp(wallet.addr,"fa")} style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"10px",color:"#22d3ee",cursor:"pointer",wordBreak:"break-all",lineHeight:1.5}}>{wallet.addr}</div>{copied==="fa"&&<div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399",marginTop:"4px"}}>COPIED!</div>}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"16px"}}>{[{l:"TEST",v:"0.01 ETH",s:"Try it"},{l:"GO BIG",v:"0.1 ETH",s:"Recommended"}].map((o,i)=>(<div key={i} style={{background:"rgba(8,6,28,0.6)",border:"2px solid #a855f712",borderRadius:"3px",padding:"10px",textAlign:"center"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",marginBottom:"4px"}}>{o.l}</div><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#22d3ee"}}>{o.v}</div><div style={{fontSize:"9px",color:"#4a4574",marginTop:"2px"}}>{o.s}</div></div>))}</div>
+              <PixBtn full big onClick={()=>{setModal(null);setView("dashboard");}} color="#22d3ee">{I.shield(13,"#fff")} GO TO HQ</PixBtn>
+              <div style={{textAlign:"center",marginTop:"12px"}}><a href="https://github.com/user/boostai" target="_blank" rel="noopener noreferrer" style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#22d3ee",textDecoration:"none",border:"1px solid #22d3ee30",borderRadius:"2px",padding:"4px 10px",background:"#22d3ee08"}}>OPEN SOURCE - VERIFY ON GITHUB</a></div>
+            </GameCard></div>
+          )}
+        </div>
+      </div>
+    )}
+
     </div>
   );
 }
