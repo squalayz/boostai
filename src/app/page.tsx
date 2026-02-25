@@ -26,7 +26,7 @@ async function apiFetch(path: string, opts?: any) {
   } catch (e: any) { return { ok: false, error: e.message || "Request failed" }; }
 }
 
-function fmt(n: number){if(n>=1e9)return(n/1e9).toFixed(2)+"B";if(n>=1e6)return(n/1e6).toFixed(2)+"M";if(n>=1e3)return(n/1e3).toFixed(1)+"K";return n.toFixed(2)}
+function fmt(n: any){const v=Number(n)||0;if(v>=1e9)return(v/1e9).toFixed(2)+"B";if(v>=1e6)return(v/1e6).toFixed(2)+"M";if(v>=1e3)return(v/1e3).toFixed(1)+"K";return v.toFixed(2)}
 
 // === LOCALSTORAGE PERSISTENCE ===
 const LS_KEY = "boostai_agents";
@@ -377,7 +377,7 @@ export default function BoostAI() {
       const r=await apiFetch("/api/chain");
       if(m){
         if(r.ok&&r.data){
-          setChain({supply:r.data.supply||0,liq:r.data.liq||0,burned:r.data.burned||0,trading:r.data.trading||false,price:r.data.price||0});
+          setChain({supply:Number(r.data.supply)||10000000000,liq:Number(r.data.liquidity||r.data.liq)||0,burned:Number(r.data.burned)||0,trading:r.data.tradingEnabled||r.data.trading||false,price:Number(r.data.price)||0});
         }
         setLoading(false);
       }
