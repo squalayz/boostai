@@ -500,7 +500,7 @@ export default function BoostAI() {
   useEffect(()=>{
     if(agentName.length<3){setNameAvail(null);return;}
     setNameChecking(true);
-    const t=setTimeout(async()=>{try{const r=await apiFetch("/api/agents/check-name/"+encodeURIComponent(agentName));if(r.ok&&r.data){setNameAvail(!r.data.taken);}else{setNameAvail(true);}}catch{setNameAvail(true);}setNameChecking(false);},300);
+    const t=setTimeout(async()=>{try{const r=await apiFetch("/api/agents/check-name/"+encodeURIComponent(agentName));if(r.ok&&r.data){setNameAvail(r.data.available!==false);}else{setNameAvail(true);}}catch{setNameAvail(true);}setNameChecking(false);},300);
     return()=>clearTimeout(t);
   },[agentName]);
 
