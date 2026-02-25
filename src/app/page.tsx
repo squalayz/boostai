@@ -211,10 +211,7 @@ const I = {
   eyeOff:(s=14,c="#8b85b1")=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
 };
 
-function FloatingCreatures() {
-  const data = useMemo(() => Array.from({length:9}, (_,i) => ({type:i%5,x:3+Math.random()*94,y:8+Math.random()*84,size:18+Math.random()*16,delay:Math.random()*6,dur:12+Math.random()*10,flip:Math.random()>0.5})), []);
-  return (<div style={{position:"fixed",inset:0,zIndex:1,pointerEvents:"none",overflow:"hidden"}}>{data.map((c,i)=>(<div key={i} style={{position:"absolute",left:`${c.x}%`,top:`${c.y}%`,opacity:0.1,animation:`fDrift ${c.dur}s ease-in-out ${c.delay}s infinite alternate`}}><Creature type={c.type} size={c.size} bounce flip={c.flip}/></div>))}</div>);
-}
+
 function Reveal({children,delay=0}: any) {
   const ref=useRef<HTMLDivElement>(null); const [v,sV]=useState(false);
   useEffect(()=>{const o=new IntersectionObserver(([e])=>{if(e.isIntersecting)sV(true)},{threshold:0.08});if(ref.current)o.observe(ref.current);return()=>o.disconnect();},[]);
@@ -308,7 +305,7 @@ export default function BoostAI() {
 
       {/* MAIN CONTENT with reveal */}
       <div style={{animation:introFade?"introReveal 2.8s ease forwards":"none"}}>
-      <SpaceCanvas/><FloatingCreatures/>
+      <SpaceCanvas/>
       <div style={{position:"fixed",inset:0,zIndex:1,pointerEvents:"none",overflow:"hidden"}}><div style={{width:"100%",height:"2px",background:"rgba(168,85,247,0.04)",animation:"scanline 5s linear infinite"}}/></div>
 
       {/* NAV */}
