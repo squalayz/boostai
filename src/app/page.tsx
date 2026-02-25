@@ -225,6 +225,7 @@ const I = {
   check:(s=12,c="#34d399")=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>,
   copy:(s=12,c="#8b85b1")=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>,
   star:(s=14,c="#fbbf24")=><svg width={s} height={s} viewBox="0 0 24 24" fill={c} stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+  moon:(s=14,c="#fbbf24")=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" style={{animation:"moonSpin 12s linear infinite"}}><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" fill={c+"30"}/></svg>,
   eye:(s=14,c="#8b85b1")=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
   eyeOff:(s=14,c="#8b85b1")=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
 };
@@ -429,7 +430,7 @@ export default function BoostAI() {
 
   // Arena: fetch all registered agents
   useEffect(()=>{
-    if(view!=="arena") return;
+    if(view!=="moonbase") return;
     let m=true;
     const load=async()=>{const r=await apiFetch("/api/agents");if(m&&r.ok&&Array.isArray(r.data))setArenaAgents(r.data);};
     load();const iv=setInterval(load,15000);return()=>{m=false;clearInterval(iv);};
@@ -437,7 +438,7 @@ export default function BoostAI() {
 
   // Arena: poll recent trades + compute volume
   useEffect(()=>{
-    if(view!=="arena") return;
+    if(view!=="moonbase") return;
     let m=true;
     const poll=async()=>{
       try{
@@ -556,6 +557,7 @@ export default function BoostAI() {
         @keyframes popIn{from{opacity:0;transform:scale(0.5)}to{opacity:1;transform:scale(1)}}
         @keyframes bounce{0%,20%,50%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}60%{transform:translateY(-3px)}}
         @keyframes scanline{0%{transform:translateY(-100vh)}100%{transform:translateY(100vh)}}
+        @keyframes moonSpin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
         @keyframes electricPulse{0%{text-shadow:0 0 10px #22d3ee,0 0 20px #a855f7,0 0 40px #22d3ee80;opacity:1}50%{text-shadow:0 0 20px #22d3ee,0 0 40px #a855f7,0 0 80px #22d3ee,0 0 100px #a855f740;opacity:0.9}100%{text-shadow:0 0 10px #22d3ee,0 0 20px #a855f7,0 0 40px #22d3ee80;opacity:1}}
         @keyframes agentWake{0%{opacity:0;transform:scale(0.4) translateY(30px);filter:brightness(0)}50%{opacity:0.7;transform:scale(0.95) translateY(-2px);filter:brightness(1.4)}70%{opacity:1;transform:scale(1.05) translateY(-5px);filter:brightness(1.1)}100%{opacity:1;transform:scale(1) translateY(0);filter:brightness(1)}}
         @keyframes agentGlowPulse{0%{filter:drop-shadow(0 0 0px transparent)}50%{filter:drop-shadow(0 0 24px var(--glow-color))}100%{filter:drop-shadow(0 0 10px var(--glow-color))}}
@@ -597,7 +599,7 @@ export default function BoostAI() {
           {!serverOnline&&<div style={{display:"flex",alignItems:"center",gap:"4px",padding:"3px 8px",background:"#f8717108",border:"2px solid #f8717120",borderRadius:"2px"}}><div style={{width:5,height:5,borderRadius:"50%",background:"#f87171"}}/><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#f87171"}}>SERVER OFFLINE</span></div>}
           {agents.length>0&&<div style={{display:"flex",alignItems:"center",gap:"4px",padding:"3px 8px",background:"#34d39908",border:"2px solid #34d39920",borderRadius:"2px"}}><div style={{width:5,height:5,borderRadius:"50%",background:"#34d399",animation:"blink 1.5s ease infinite"}}/><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399"}}>{agents.length}</span></div>}
           <PixBtn onClick={()=>{setView("home");setModal(null);}} ghost color="#4a4574">HOME</PixBtn>
-          <PixBtn onClick={()=>{setView("arena");setModal(null);setArenaPopup(null);}} ghost color="#4a4574">ARENA</PixBtn>
+          <PixBtn onClick={()=>{setView("moonbase");setModal(null);setArenaPopup(null);}} ghost color="#4a4574">MOONBASE</PixBtn>
           <PixBtn onClick={()=>{setView("dashboard");setModal(null);}} ghost color="#4a4574">HQ</PixBtn>
           <PixBtn onClick={openCreate} color="#a855f7">{I.bolt(11,"#fff")} PLAY</PixBtn>
         </div>
@@ -624,7 +626,7 @@ export default function BoostAI() {
             <p style={{fontSize:"clamp(12px,1.5vw,16px)",color:"#8b85b1",maxWidth:"500px",lineHeight:1.7,margin:"18px 0 0",animation:"fadeUp 0.5s ease 0.2s both"}}>Choose your AI creature. Deploy on Base. It trades <span style={{fontWeight:700,color:"#22d3ee",textShadow:"0 0 10px #22d3ee, 0 0 20px #a855f7, 0 0 40px #22d3ee80, 0 0 60px #a855f740",animation:"electricPulse 1.5s ease-in-out infinite",letterSpacing:"2px"}}>$BOOST</span> autonomously. Collect the loot.</p>
             <div style={{display:"flex",gap:"12px",marginTop:"28px",animation:"fadeUp 0.5s ease 0.3s both",flexWrap:"wrap",justifyContent:"center"}}>
               <PixBtn onClick={openCreate} color="#a855f7" big>{I.bolt(13,"#fff")} CHOOSE AGENT</PixBtn>
-              <PixBtn onClick={()=>setView("arena")} color="#fbbf24" big ghost>{I.star(13,"#fbbf24")} WATCH ARENA</PixBtn>
+              <PixBtn onClick={()=>setView("moonbase")} color="#fbbf24" big ghost>{I.moon(13,"#fbbf24")} ENTER MOONBASE</PixBtn>
               <PixBtn onClick={()=>setView("dashboard")} color="#22d3ee" big ghost>{I.shield(13,"#22d3ee")} DASHBOARD</PixBtn>
             </div>
             <div style={{display:"flex",gap:"8px",marginTop:"44px",flexWrap:"wrap",justifyContent:"center",animation:"fadeUp 0.5s ease 0.4s both"}}>
@@ -693,11 +695,11 @@ export default function BoostAI() {
         </>)}
 
         {/* === ARENA === */}
-        {view==="arena"&&!modal&&(
+        {view==="moonbase"&&!modal&&(
           <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",paddingTop:"48px"}}>
             {!arenaBrowser?(
             <>
-            {/* TOP: SPACE ARENA - 65vh */}
+            {/* TOP: MOONBASE - 65vh */}
             <div style={{height:"65vh",position:"relative",overflow:"hidden",background:"radial-gradient(ellipse at 50% 80%,#0c0a24 0%,#030210 100%)"}}>
               {/* Floating stars */}
               {arenaStars.map((s: any,i: number)=>(
@@ -706,7 +708,7 @@ export default function BoostAI() {
 
               {/* Arena title */}
               <div style={{position:"absolute",top:"16px",left:"50%",transform:"translateX(-50%)",textAlign:"center",zIndex:15}}>
-                <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"clamp(10px,2vw,16px)",color:"#fbbf24",textShadow:"0 0 14px #fbbf2430",letterSpacing:"3px"}}>SPACE ARENA</div>
+                <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"clamp(10px,2vw,16px)",color:"#fbbf24",textShadow:"0 0 14px #fbbf2430",letterSpacing:"3px"}}>MOONBASE</div>
               </div>
 
               {/* Badge: showing N of total */}
@@ -828,7 +830,7 @@ export default function BoostAI() {
             <div style={{minHeight:"100vh",padding:"64px 20px 40px",maxWidth:"1200px",margin:"0 auto"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px",flexWrap:"wrap",gap:"8px"}}>
                 <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"14px",color:"#fbbf24",letterSpacing:"2px"}}>ALL AGENTS ({arenaAgents.length})</div>
-                <PixBtn onClick={()=>setArenaBrowser(false)} ghost color="#4a4574">BACK TO ARENA</PixBtn>
+                <PixBtn onClick={()=>setArenaBrowser(false)} ghost color="#4a4574">BACK TO MOONBASE</PixBtn>
               </div>
               <input type="text" value={browserSearch} onChange={e=>setBrowserSearch(e.target.value.toUpperCase())} placeholder="SEARCH BY NAME..." style={{width:"100%",padding:"10px 14px",background:"#050410",border:"2px solid #a855f720",borderRadius:"3px",color:"#22d3ee",fontSize:"10px",fontFamily:"'Press Start 2P',monospace",letterSpacing:"2px",outline:"none",boxSizing:"border-box",marginBottom:"12px"}}/>
               {filteredBrowserAgents.length===0?(
@@ -979,7 +981,7 @@ export default function BoostAI() {
               <div style={{textAlign:"center",marginBottom:"14px"}}><Creature type={agentType} size={56} glow bounce/><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#fbbf24",marginTop:"8px"}}>POWER UP!</div><p style={{fontSize:"10px",color:"#8b85b1",marginTop:"4px"}}>Send ETH on Base to begin</p></div>
               <div style={{background:"#050410",border:"2px solid #22d3ee15",borderRadius:"3px",padding:"14px",textAlign:"center",marginBottom:"14px"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",letterSpacing:"2px",marginBottom:"6px"}}>DEPOSIT (BASE)</div><div onClick={()=>cp(wallet.address,"fa")} style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"10px",color:"#22d3ee",cursor:"pointer",wordBreak:"break-all",lineHeight:1.5}}>{wallet.address}</div>{copied==="fa"&&<div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399",marginTop:"4px"}}>COPIED!</div>}</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"16px"}}>{[{l:"TEST",v:"0.01 ETH",s:"Try it"},{l:"GO BIG",v:"0.1 ETH",s:"Recommended"}].map((o,i)=>(<div key={i} style={{background:"rgba(8,6,28,0.6)",border:"2px solid #a855f712",borderRadius:"3px",padding:"10px",textAlign:"center"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",marginBottom:"4px"}}>{o.l}</div><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#22d3ee"}}>{o.v}</div><div style={{fontSize:"9px",color:"#4a4574",marginTop:"2px"}}>{o.s}</div></div>))}</div>
-              <PixBtn full big onClick={()=>{setModal(null);setView("arena");}} color="#22d3ee">{I.shield(13,"#fff")} ENTER ARENA</PixBtn>
+              <PixBtn full big onClick={()=>{setModal(null);setView("moonbase");}} color="#22d3ee">{I.shield(13,"#fff")} ENTER MOONBASE</PixBtn>
             </GameCard></div>
           )}
         </div>
@@ -987,7 +989,7 @@ export default function BoostAI() {
     )}
 
     {/* ARENA AGENT POPUP */}
-    {view==="arena"&&arenaPopup&&(
+    {view==="moonbase"&&arenaPopup&&(
       <div onClick={()=>setArenaPopup(null)} style={{position:"fixed",inset:0,zIndex:100,background:"rgba(3,2,16,0.85)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px",animation:"fadeIn 0.2s ease"}}>
         <div onClick={(e: any)=>e.stopPropagation()} style={{maxWidth:"380px",width:"100%",position:"relative",animation:"fadeUp 0.3s ease"}}>
           <GameCard accent={AGENTS[(arenaPopup.type??0)%5].color} glow>
