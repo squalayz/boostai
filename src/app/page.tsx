@@ -250,7 +250,7 @@ export default function BoostAI() {
   const [introFade,setIntroFade]=useState(true);
 
   useEffect(()=>{let m=true;const l=async()=>{const d=await fetchChain();if(m){setChain(d);setLoading(false);}};l();const iv=setInterval(l,30000);return()=>{m=false;clearInterval(iv);};},[]);
-  useEffect(()=>{const t=setTimeout(()=>setIntroFade(false),2800);return()=>clearTimeout(t);},[]);
+  useEffect(()=>{const t=setTimeout(()=>setIntroFade(false),1600);return()=>clearTimeout(t);},[]);
 
   const cp=(txt: string,id: string)=>{navigator.clipboard.writeText(txt).then(()=>{setCopied(id);setTimeout(()=>setCopied(null),2000);});};
   const openCreate=()=>{setModal("select");setAgentName("");setAgentType(0);setWallet(null);setShowKey(false);};
@@ -268,43 +268,32 @@ export default function BoostAI() {
         @keyframes termIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:translateX(0)}}
         @keyframes pulse{0%,100%{opacity:0.15}50%{opacity:0.7}}
         @keyframes cBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-        @keyframes fDrift{0%{transform:translate(0,0) rotate(0deg)}50%{transform:translate(15px,-12px) rotate(3deg)}100%{transform:translate(-10px,8px) rotate(-2deg)}}
         @keyframes hFloat{0%,100%{transform:translateY(0)}25%{transform:translateY(-14px)}75%{transform:translateY(-8px)}}
         @keyframes popIn{from{opacity:0;transform:scale(0.5)}to{opacity:1;transform:scale(1)}}
         @keyframes bounce{0%,20%,50%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}60%{transform:translateY(-3px)}}
         @keyframes scanline{0%{transform:translateY(-100vh)}100%{transform:translateY(100vh)}}
-        @keyframes introFlash{0%{opacity:0}5%{opacity:0.8}10%{opacity:0}20%{opacity:0.6}25%{opacity:0}40%{opacity:1}45%{opacity:0.1}55%{opacity:0.9}60%{opacity:0}70%{opacity:0.7}75%{opacity:0}85%{opacity:1}100%{opacity:0}}
-        @keyframes introReveal{0%{opacity:0;filter:brightness(0)}30%{opacity:0;filter:brightness(0)}50%{opacity:0.3;filter:brightness(3)}55%{opacity:0.1;filter:brightness(0.5)}70%{opacity:0.5;filter:brightness(2)}75%{opacity:0.2;filter:brightness(0.8)}90%{opacity:0.8;filter:brightness(1.5)}100%{opacity:1;filter:brightness(1)}}
-        @keyframes introContentReveal{0%{opacity:0;transform:scale(0.97)}100%{opacity:1;transform:scale(1)}}
-        @keyframes boltCrack1{0%{opacity:0;d:path("M 50 0 L 52 25 L 45 30 L 55 55 L 48 60 L 56 100")}10%{opacity:1}20%{opacity:0.3}30%{opacity:0.9}50%{opacity:0}100%{opacity:0}}
-        @keyframes boltCrack2{0%{opacity:0}15%{opacity:0}25%{opacity:1}35%{opacity:0.2}45%{opacity:0.8}60%{opacity:0}100%{opacity:0}}
-        @keyframes boltCrack3{0%{opacity:0}30%{opacity:0}40%{opacity:1}50%{opacity:0.1}55%{opacity:0.7}65%{opacity:0}100%{opacity:0}}
-        @keyframes introFadeOut{0%{opacity:1;pointer-events:all}80%{opacity:0.3}100%{opacity:0;pointer-events:none}}
+        @keyframes agentWake{0%{opacity:0;transform:scale(0.3) translateY(20px);filter:brightness(0)}40%{opacity:0.6;transform:scale(0.8) translateY(-4px);filter:brightness(1.8)}60%{opacity:1;transform:scale(1.1) translateY(-8px);filter:brightness(1.2)}100%{opacity:1;transform:scale(1) translateY(0);filter:brightness(1)}}
+        @keyframes agentGlowPulse{0%{filter:drop-shadow(0 0 0px transparent)}50%{filter:drop-shadow(0 0 20px var(--glow-color))}100%{filter:drop-shadow(0 0 8px var(--glow-color))}}
+        @keyframes siteReveal{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}
+        @keyframes introBgFade{0%{opacity:1}100%{opacity:0;pointer-events:none}}
         input::placeholder{color:#4a4574}
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#030210}::-webkit-scrollbar-thumb{background:#581c87;border-radius:2px}
         button{outline:none}
       `}</style>
 
-      {/* LIGHTNING INTRO OVERLAY */}
-      <div style={{position:"fixed",inset:0,zIndex:introFade?200:0,pointerEvents:introFade?"all":"none",opacity:introFade?1:0,transition:"opacity 0.6s ease",background:"#030210"}}>
-        <svg width="100%" height="100%" style={{position:"absolute",inset:0}}>
-          {/* bolt 1 - left */}
-          <path d="M 25% 0 L 27% 20% L 22% 28% L 30% 50% L 24% 58% L 28% 80% L 25% 100%" fill="none" stroke="#a855f7" strokeWidth="3" opacity="0" style={{animation:"boltCrack1 2.8s ease forwards",filter:"drop-shadow(0 0 20px #a855f7) drop-shadow(0 0 40px #22d3ee)"}}/>
-          <path d="M 25% 0 L 27% 20% L 22% 28% L 30% 50% L 24% 58% L 28% 80% L 25% 100%" fill="none" stroke="#22d3ee" strokeWidth="8" opacity="0" style={{animation:"boltCrack1 2.8s ease forwards",filter:"blur(8px)"}}/>
-          {/* bolt 2 - right */}
-          <path d="M 75% 0 L 72% 15% L 78% 25% L 70% 45% L 76% 55% L 73% 75% L 77% 100%" fill="none" stroke="#a855f7" strokeWidth="3" opacity="0" style={{animation:"boltCrack2 2.8s ease forwards",filter:"drop-shadow(0 0 20px #a855f7) drop-shadow(0 0 40px #22d3ee)"}}/>
-          <path d="M 75% 0 L 72% 15% L 78% 25% L 70% 45% L 76% 55% L 73% 75% L 77% 100%" fill="none" stroke="#22d3ee" strokeWidth="8" opacity="0" style={{animation:"boltCrack2 2.8s ease forwards",filter:"blur(8px)"}}/>
-          {/* bolt 3 - center */}
-          <path d="M 50% 0 L 48% 18% L 53% 30% L 46% 48% L 52% 60% L 49% 78% L 51% 100%" fill="none" stroke="#fbbf24" strokeWidth="2" opacity="0" style={{animation:"boltCrack3 2.8s ease forwards",filter:"drop-shadow(0 0 15px #fbbf24) drop-shadow(0 0 30px #a855f7)"}}/>
-          <path d="M 50% 0 L 48% 18% L 53% 30% L 46% 48% L 52% 60% L 49% 78% L 51% 100%" fill="none" stroke="#fbbf24" strokeWidth="6" opacity="0" style={{animation:"boltCrack3 2.8s ease forwards",filter:"blur(6px)"}}/>
-        </svg>
-        {/* flash overlay */}
-        <div style={{position:"absolute",inset:0,background:"radial-gradient(circle at 50% 50%, rgba(168,85,247,0.3), transparent 70%)",animation:"introFlash 2.8s ease forwards"}}/>
-        <div style={{position:"absolute",inset:0,background:"#030210",animation:"introFadeOut 2.8s ease forwards"}}/>
+      {/* AGENT WAKE-UP INTRO */}
+      <div style={{position:"fixed",inset:0,zIndex:introFade?200:0,pointerEvents:introFade?"all":"none",background:"#030210",display:"flex",justifyContent:"center",alignItems:"center",animation:introFade?"none":"introBgFade 0.5s ease forwards"}}>
+        <div style={{display:"flex",gap:"18px",alignItems:"flex-end"}}>
+          {[4,3,0,1,2].map((t,i)=>{const colors=["#fbbf24","#f87171","#a855f7","#22d3ee","#34d399"];return(
+            <div key={t} style={{"--glow-color":colors[i],animation:`agentWake 0.5s cubic-bezier(0.34,1.56,0.64,1) ${0.15+i*0.18}s both, agentGlowPulse 1.5s ease ${0.65+i*0.18}s both`,display:"flex",flexDirection:"column",alignItems:"center"} as any}>
+              <Creature type={t} size={i===2?64:i===1||i===3?44:32} glow={i===2}/>
+            </div>
+          );})}
+        </div>
       </div>
 
-      {/* MAIN CONTENT with reveal */}
-      <div style={{animation:introFade?"introReveal 2.8s ease forwards":"none"}}>
+      {/* MAIN CONTENT */}
+      <div style={{animation:introFade?"none":"siteReveal 0.6s ease 0.3s both"}}>
       <SpaceCanvas/>
       <div style={{position:"fixed",inset:0,zIndex:1,pointerEvents:"none",overflow:"hidden"}}><div style={{width:"100%",height:"2px",background:"rgba(168,85,247,0.04)",animation:"scanline 5s linear infinite"}}/></div>
 
