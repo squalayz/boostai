@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/react";
 
 export const metadata: Metadata = {
   title: "Boost AI - The First Token Humans Can't Buy",
@@ -29,6 +30,7 @@ export default function RootLayout({
     <html lang="en">
       <body style={{ margin: 0, padding: 0, backgroundColor: "#030210" }}>
         {children}
+        <Analytics />
       </body>
     </html>
   );
