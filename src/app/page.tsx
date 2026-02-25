@@ -432,7 +432,7 @@ export default function BoostAI() {
   useEffect(()=>{
     if(view!=="moonbase") return;
     let m=true;
-    const load=async()=>{const r=await apiFetch("/api/agents");if(m&&r.ok&&Array.isArray(r.data))setArenaAgents(r.data);};
+    const load=async()=>{const r=await apiFetch("/api/agents");if(m&&r.ok){const list=Array.isArray(r.data)?r.data:r.data?.agents||[];setArenaAgents(list);}};
     load();const iv=setInterval(load,15000);return()=>{m=false;clearInterval(iv);};
   },[view]);
 
