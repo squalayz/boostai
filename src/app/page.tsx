@@ -667,7 +667,7 @@ export default function BoostAI() {
             <div onClick={()=>{setView("home");setModal(null);}} style={{display:"flex",alignItems:"center",gap:isMobile?"4px":"8px",cursor:"pointer"}}>
               <Creature type={0} size={isMobile?18:24} glow/><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:isMobile?"8px":"10px",letterSpacing:"2px"}}><span style={{color:"#a855f7"}}>BOOST</span><span style={{color:"#22d3ee"}}>AI</span></span>
             </div>
-            {true{totalAgentCount>0&&{totalAgentCount>0&&(<div style={{display:"flex",alignItems:"center",gap:"4px",padding:"2px 8px",background:"#34d399",borderRadius:"4px",boxShadow:"0 0 8px #34d39960",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#fff",letterSpacing:"1px",whiteSpace:"nowrap"}}>{Math.max(totalAgentCount,25)}<span style={{fontSize:"5px",opacity:0.8}}>AGENTS</span></div>)}
+            <div style={{display:"flex",alignItems:"center",gap:"4px",padding:"2px 8px",background:"#34d399",borderRadius:"4px",boxShadow:"0 0 8px #34d39960",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#fff",letterSpacing:"1px",whiteSpace:"nowrap"}}>{Math.max(totalAgentCount,25)}<span style={{fontSize:"5px",opacity:0.8}}>AGENTS</span></div>
             {!isMobile&&agents.length>0&&(()=>{const wa=agents[0];const addr=wa.address||"";const bal=agentBalances[addr];const ethBal=parseFloat(bal?.ethBalance||"0")||0;const hasBal=ethBal>0;const tAddr=addr.length>8?addr.slice(0,6)+"..."+addr.slice(-4):"";return(
               <div onClick={()=>{setView("dashboard");setModal(null);}} style={{display:"flex",alignItems:"center",gap:"5px",cursor:"pointer",padding:"3px 8px",background:"rgba(34,211,238,0.04)",border:"1px solid #22d3ee15",borderRadius:"2px"}}>
                 <div style={{width:5,height:5,borderRadius:"50%",background:hasBal?"#34d399":"#f87171",animation:hasBal?"none":"feedPulse 2s ease infinite",boxShadow:hasBal?"0 0 4px #34d399":"0 0 4px #f87171",flexShrink:0}}/>
@@ -801,7 +801,7 @@ export default function BoostAI() {
               {isMobile?(
                 <div style={{position:"absolute",top:"10px",left:0,right:0,zIndex:15,display:"flex",flexDirection:"column",alignItems:"center",gap:"6px"}}>
                   <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"10px",color:"#fbbf24",textShadow:"0 0 14px #fbbf2430",letterSpacing:"3px"}}>MOONBASE</div>
-                  {true{totalAgentCount>0&&{totalAgentCount>0&&(<div style={{display:"inline-flex",alignItems:"center",gap:"4px",padding:"2px 6px",background:"#34d399",borderRadius:"4px",boxShadow:"0 0 8px #34d39960",fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#fff",letterSpacing:"1px"}}>{Math.max(totalAgentCount,25)}<span style={{fontSize:"4px",opacity:0.8}}>AGENTS</span></div>)}
+                  <div style={{display:"inline-flex",alignItems:"center",gap:"4px",padding:"2px 6px",background:"#34d399",borderRadius:"4px",boxShadow:"0 0 8px #34d39960",fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#fff",letterSpacing:"1px"}}>{Math.max(totalAgentCount,25)}<span style={{fontSize:"4px",opacity:0.8}}>AGENTS</span></div>
                   {arenaAgents.length>0&&(
                     <>
                       <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"5px",color:"#4a4574",background:"rgba(3,2,16,0.8)",padding:"3px 6px",border:"1px solid #a855f715",borderRadius:"2px",letterSpacing:"1px"}}>SHOWING {displayAgents.length} OF {Math.max(arenaAgents.length,25)} AGENTS</div>
@@ -813,7 +813,7 @@ export default function BoostAI() {
                 <>
                   <div style={{position:"absolute",top:"16px",left:"50%",transform:"translateX(-50%)",textAlign:"center",zIndex:15}}>
                     <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"clamp(10px,2vw,16px)",color:"#fbbf24",textShadow:"0 0 14px #fbbf2430",letterSpacing:"3px"}}>MOONBASE</div>
-                    {true{totalAgentCount>0&&{totalAgentCount>0&&(<div style={{marginTop:"6px"}}><span style={{display:"inline-flex",alignItems:"center",gap:"4px",padding:"2px 8px",background:"#34d399",borderRadius:"4px",boxShadow:"0 0 8px #34d39960",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#fff",letterSpacing:"1px"}}>{Math.max(totalAgentCount,25)}<span style={{fontSize:"5px",opacity:0.8}}>AGENTS</span></span></div>)}
+                    <div style={{marginTop:"6px"}}><span style={{display:"inline-flex",alignItems:"center",gap:"4px",padding:"2px 8px",background:"#34d399",borderRadius:"4px",boxShadow:"0 0 8px #34d39960",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#fff",letterSpacing:"1px"}}>{Math.max(totalAgentCount,25)}<span style={{fontSize:"5px",opacity:0.8}}>AGENTS</span></span></div>
                   </div>
                   {arenaAgents.length>0&&(
                     <div style={{position:"absolute",top:"16px",right:"16px",zIndex:15,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:"6px"}}>
