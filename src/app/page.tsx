@@ -370,6 +370,7 @@ export default function BoostAI() {
   const [browserPage,setBrowserPage]=useState(1);
   const [volumeBars,setVolumeBars]=useState<{buy:number,sell:number}[]>(Array.from({length:30},()=>({buy:0,sell:0})));
   const [isMobile,setIsMobile]=useState(false);
+  const [totalAgentCount,setTotalAgentCount]=useState(0);
 
   // Mobile detection
   useEffect(()=>{
@@ -388,6 +389,21 @@ export default function BoostAI() {
     };
     check();
     const iv=setInterval(check,30000);
+    return()=>{m=false;clearInterval(iv);};
+  },[]);
+
+  // Global agent count poll
+  useEffect(()=>{
+    let m=true;
+    const poll=async()=>{
+      const r=await apiFetch("/api/agents");
+      if(m&&r.ok){
+        const list=Array.isArray(r.data)?r.data:r.data?.agents||[];
+        setTotalAgentCount(list.length);
+      }
+    };
+    poll();
+    const iv=setInterval(poll,30000);
     return()=>{m=false;clearInterval(iv);};
   },[]);
 
@@ -415,14 +431,15 @@ export default function BoostAI() {
     if (stored.length > 0) setAgents(stored);
     const load=async()=>{
       const r=await apiFetch("/api/agents");
-      if(m&&r.ok&&Array.isArray(r.data)){
+      const serverAgents=r.ok?(Array.isArray(r.data)?r.data:r.data?.agents||[]):[];
+      if(m&&serverAgents.length>0){
         const local = lsGet();
         const merged: any[] = [];
         local.forEach((la: any) => {
-          const sa = r.data.find((s: any) => s.address === la.address);
+          const sa = serverAgents.find((s: any) => s.address === la.address);
           merged.push(sa ? { ...la, name: sa.name || la.name, type: sa.type ?? la.type, registrationTx: sa.registrationTx || la.registrationTx } : la);
         });
-        r.data.forEach((sa: any) => {
+        serverAgents.forEach((sa: any) => {
           if (!merged.find((x: any) => x.address === sa.address)) {
             merged.push({ name: sa.name, type: sa.type, address: sa.address, registrationTx: sa.registrationTx, ts: sa.createdAt || Date.now() });
           }
@@ -617,6 +634,7 @@ export default function BoostAI() {
         @keyframes laserShoot{0%{height:0;opacity:0.8}20%{height:200px;opacity:1}100%{height:200px;opacity:0}}
         @keyframes laserText{0%{opacity:0;transform:translateX(-50%) translateY(0)}15%{opacity:1;transform:translateX(-50%) translateY(-10px)}100%{opacity:0;transform:translateX(-50%) translateY(-50px)}}
         @keyframes feedPulse{0%,100%{opacity:0.3}50%{opacity:1}}
+        @keyframes agentCountGlow{0%,100%{text-shadow:0 0 6px #34d39940}50%{text-shadow:0 0 14px #34d39980,0 0 20px #34d39940}}
         input::placeholder{color:#4a4574}
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#030210}::-webkit-scrollbar-thumb{background:#581c87;border-radius:2px}
         button{outline:none}
@@ -649,6 +667,7 @@ export default function BoostAI() {
             <div onClick={()=>{setView("home");setModal(null);}} style={{display:"flex",alignItems:"center",gap:isMobile?"4px":"8px",cursor:"pointer"}}>
               <Creature type={0} size={isMobile?18:24} glow/><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:isMobile?"8px":"10px",letterSpacing:"2px"}}><span style={{color:"#a855f7"}}>BOOST</span><span style={{color:"#22d3ee"}}>AI</span></span>
             </div>
+            {totalAgentCount>0&&(<div style={{display:"flex",alignItems:"center",gap:"4px",padding:"2px 8px",background:"#34d399",borderRadius:"4px",boxShadow:"0 0 8px #34d39960",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#fff",letterSpacing:"1px",whiteSpace:"nowrap"}}>{totalAgentCount}<span style={{fontSize:"5px",opacity:0.8}}>AGENTS</span></div>)}
             {!isMobile&&agents.length>0&&(()=>{const wa=agents[0];const addr=wa.address||"";const bal=agentBalances[addr];const ethBal=parseFloat(bal?.ethBalance||"0")||0;const hasBal=ethBal>0;const tAddr=addr.length>8?addr.slice(0,6)+"..."+addr.slice(-4):"";return(
               <div onClick={()=>{setView("dashboard");setModal(null);}} style={{display:"flex",alignItems:"center",gap:"5px",cursor:"pointer",padding:"3px 8px",background:"rgba(34,211,238,0.04)",border:"1px solid #22d3ee15",borderRadius:"2px"}}>
                 <div style={{width:5,height:5,borderRadius:"50%",background:hasBal?"#34d399":"#f87171",animation:hasBal?"none":"feedPulse 2s ease infinite",boxShadow:hasBal?"0 0 4px #34d399":"0 0 4px #f87171",flexShrink:0}}/>
@@ -694,6 +713,7 @@ export default function BoostAI() {
             <div style={{marginTop:"14px",animation:"fadeUp 0.5s ease 0.15s both"}}>
               <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"10px",color:"#030210",background:"linear-gradient(90deg,#fbbf24,#f59e0b)",padding:"6px 18px",borderRadius:"3px",letterSpacing:"2px",display:"inline-block",boxShadow:"0 0 20px #fbbf2440"}}>LAUNCHING SOON</span>
             </div>
+            {totalAgentCount>0&&(<div style={{marginTop:"10px",animation:"fadeUp 0.5s ease 0.18s both"}}><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"9px",letterSpacing:"2px"}}><span style={{color:"#34d399",textShadow:"0 0 8px #34d39960",animation:"agentCountGlow 3s ease infinite"}}>{totalAgentCount}</span><span style={{color:"#8b85b1"}}> AGENTS DEPLOYED</span></span></div>)}
             <p style={{fontSize:"clamp(12px,1.5vw,16px)",color:"#8b85b1",maxWidth:"500px",lineHeight:1.7,margin:"18px 0 0",animation:"fadeUp 0.5s ease 0.2s both"}}>Choose your AI creature. Deploy on Base. It trades <span style={{fontWeight:700,color:"#22d3ee",textShadow:"0 0 10px #22d3ee, 0 0 20px #a855f7, 0 0 40px #22d3ee80, 0 0 60px #a855f740",animation:"electricPulse 1.5s ease-in-out infinite",letterSpacing:"2px"}}>$BOOST</span> autonomously. Collect the loot.</p>
             <div style={{display:"flex",gap:"12px",marginTop:"28px",animation:"fadeUp 0.5s ease 0.3s both",flexWrap:"wrap",justifyContent:"center"}}>
               <PixBtn onClick={openCreate} color="#a855f7" big>{I.bolt(13,"#fff")} CHOOSE AGENT</PixBtn>
@@ -781,6 +801,7 @@ export default function BoostAI() {
               {isMobile?(
                 <div style={{position:"absolute",top:"10px",left:0,right:0,zIndex:15,display:"flex",flexDirection:"column",alignItems:"center",gap:"6px"}}>
                   <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"10px",color:"#fbbf24",textShadow:"0 0 14px #fbbf2430",letterSpacing:"3px"}}>MOONBASE</div>
+                  {totalAgentCount>0&&(<div style={{display:"inline-flex",alignItems:"center",gap:"4px",padding:"2px 6px",background:"#34d399",borderRadius:"4px",boxShadow:"0 0 8px #34d39960",fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#fff",letterSpacing:"1px"}}>{totalAgentCount}<span style={{fontSize:"4px",opacity:0.8}}>AGENTS</span></div>)}
                   {arenaAgents.length>0&&(
                     <>
                       <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"5px",color:"#4a4574",background:"rgba(3,2,16,0.8)",padding:"3px 6px",border:"1px solid #a855f715",borderRadius:"2px",letterSpacing:"1px"}}>SHOWING {displayAgents.length} OF {arenaAgents.length} AGENTS</div>
@@ -792,6 +813,7 @@ export default function BoostAI() {
                 <>
                   <div style={{position:"absolute",top:"16px",left:"50%",transform:"translateX(-50%)",textAlign:"center",zIndex:15}}>
                     <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"clamp(10px,2vw,16px)",color:"#fbbf24",textShadow:"0 0 14px #fbbf2430",letterSpacing:"3px"}}>MOONBASE</div>
+                    {totalAgentCount>0&&(<div style={{marginTop:"6px"}}><span style={{display:"inline-flex",alignItems:"center",gap:"4px",padding:"2px 8px",background:"#34d399",borderRadius:"4px",boxShadow:"0 0 8px #34d39960",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#fff",letterSpacing:"1px"}}>{totalAgentCount}<span style={{fontSize:"5px",opacity:0.8}}>AGENTS</span></span></div>)}
                   </div>
                   {arenaAgents.length>0&&(
                     <div style={{position:"absolute",top:"16px",right:"16px",zIndex:15,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:"6px"}}>
