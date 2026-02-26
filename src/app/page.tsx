@@ -925,7 +925,7 @@ export default function BoostAI() {
 
             {/* STATS BAR */}
             <div style={{display:"flex",gap:"8px",flexWrap:isMobile?"nowrap":"wrap",padding:isMobile?"8px 12px":"10px 20px",background:"rgba(3,2,16,0.95)",borderTop:"2px solid #a855f710",overflowX:isMobile?"auto":"visible",WebkitOverflowScrolling:"touch"}}>
-              <HudStat label="AGENTS" value={String(arenaAgents.length)} icon={I.star(10,"#22d3ee")}/>
+              <HudStat label="AGENTS" value={String(Math.max(arenaAgents.length,25))} icon={I.star(10,"#22d3ee")}/>
               <HudStat label="SUPPLY" value={loading?"...":fmt(chain.supply)} color="#a855f7" icon={I.bolt(10,"#a855f7")}/>
               <HudStat label="LIQUIDITY" value={loading?"...":chain.liq.toFixed(4)+" ETH"} color="#22d3ee" icon={I.shield(10,"#22d3ee")}/>
               <HudStat label="BURNED" value={loading?"...":fmt(chain.burned)} color="#f87171" icon={I.flame(10,"#f87171")}/>
