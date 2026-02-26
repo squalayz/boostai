@@ -444,7 +444,7 @@ export default function BoostAI() {
         const r=await apiFetch("/api/agents");
         if(!m) return;
         const serverList=r.ok?(Array.isArray(r.data)?r.data:r.data?.agents||[]):[];
-        const localAgents=loadLS();
+        const localAgents=lsGet();
         const serverAddrs=new Set(serverList.map((a:any)=>(a.address||"").toLowerCase()));
         const merged=[...serverList,...localAgents.filter((a:any)=>a.address&&!serverAddrs.has(a.address.toLowerCase()))];
         setArenaAgents(merged);
@@ -609,8 +609,16 @@ export default function BoostAI() {
 
       {/* NAV */}
       <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:50,padding:"6px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(3,2,16,0.92)",borderBottom:"2px solid #a855f710",backdropFilter:"blur(16px)"}}>
-        <div onClick={()=>{setView("home");setModal(null);}} style={{display:"flex",alignItems:"center",gap:"8px",cursor:"pointer"}}>
-          <Creature type={0} size={24} glow/><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"10px",letterSpacing:"2px"}}><span style={{color:"#a855f7"}}>BOOST</span><span style={{color:"#22d3ee"}}>AI</span></span>
+        <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+          <div onClick={()=>{setView("home");setModal(null);}} style={{display:"flex",alignItems:"center",gap:"8px",cursor:"pointer"}}>
+            <Creature type={0} size={24} glow/><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"10px",letterSpacing:"2px"}}><span style={{color:"#a855f7"}}>BOOST</span><span style={{color:"#22d3ee"}}>AI</span></span>
+          </div>
+          {agents.length>0&&(()=>{const wa=agents[0];const addr=wa.address||"";const bal=agentBalances[addr];const ethBal=parseFloat(bal?.ethBalance||"0")||0;const hasBal=ethBal>0;const tAddr=addr.length>8?addr.slice(0,6)+"..."+addr.slice(-4):"";return(
+            <div onClick={()=>{setView("dashboard");setModal(null);}} style={{display:"flex",alignItems:"center",gap:"5px",cursor:"pointer",padding:"3px 8px",background:"rgba(34,211,238,0.04)",border:"1px solid #22d3ee15",borderRadius:"2px"}}>
+              <div style={{width:5,height:5,borderRadius:"50%",background:hasBal?"#34d399":"#f87171",animation:hasBal?"none":"feedPulse 2s ease infinite",boxShadow:hasBal?"0 0 4px #34d399":"0 0 4px #f87171",flexShrink:0}}/>
+              <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#22d3ee",letterSpacing:"1px",whiteSpace:"nowrap"}}>{tAddr}</span>
+            </div>
+          );})()}
         </div>
         <div style={{display:"flex",gap:"6px",alignItems:"center"}}>
           {!serverOnline&&<div style={{display:"flex",alignItems:"center",gap:"4px",padding:"3px 8px",background:"#f8717108",border:"2px solid #f8717120",borderRadius:"2px"}}><div style={{width:5,height:5,borderRadius:"50%",background:"#f87171"}}/><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#f87171"}}>SERVER OFFLINE</span></div>}
