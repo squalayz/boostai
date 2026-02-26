@@ -319,6 +319,18 @@ const ArenaAgent = memo(function ArenaAgent({ ag, xPct, yOff, hasBeam, beamDir, 
   );
 });
 
+// === MOBILE ARENA AGENT ===
+const MobileArenaAgent = memo(function MobileArenaAgent({ ag, xPct, yOff, hasBeam, beamDir, onClick, index }: any) {
+  const a = AGENTS[(ag.type ?? 0) % 5];
+  const name = ag.name && ag.name.length > 8 ? ag.name.slice(0, 8) + "..." : ag.name;
+  return (
+    <div onClick={onClick} style={{position:"absolute",bottom:(90+yOff)+"px",left:xPct+"%",transform:"translateX(-50%)",cursor:"pointer",animation:`zeroGBob ${3+index*0.3}s ease-in-out ${index*0.2}s infinite`,zIndex:10,textAlign:"center",transition:"filter 0.3s",filter:hasBeam?`drop-shadow(0 0 8px ${beamDir==="buy"?"#34d399":"#f87171"})`:undefined}}>
+      <Creature type={(ag.type??0)%5} size={28} glow={hasBeam} bounce={false}/>
+      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"5px",color:a.color,marginTop:"1px",textShadow:"0 0 4px rgba(0,0,0,0.9)",whiteSpace:"nowrap",maxWidth:"50px",overflow:"hidden",textOverflow:"ellipsis"}}>{name}</div>
+    </div>
+  );
+});
+
 // === MAIN ===
 export default function BoostAI() {
   const [view,setViewRaw]=useState("home");
@@ -357,6 +369,15 @@ export default function BoostAI() {
   const [browserSearch,setBrowserSearch]=useState("");
   const [browserPage,setBrowserPage]=useState(1);
   const [volumeBars,setVolumeBars]=useState<{buy:number,sell:number}[]>(Array.from({length:30},()=>({buy:0,sell:0})));
+  const [isMobile,setIsMobile]=useState(false);
+
+  // Mobile detection
+  useEffect(()=>{
+    const check=()=>setIsMobile(window.innerWidth<768);
+    check();
+    window.addEventListener("resize",check);
+    return()=>window.removeEventListener("resize",check);
+  },[]);
 
   // Health check every 30s
   useEffect(()=>{
@@ -525,11 +546,21 @@ export default function BoostAI() {
 
   const agentPositions=useMemo(()=>{
     const p: Record<string,{x:number,y:number}>={};
-    displayAgents.forEach((ag:any,i:number)=>{
-      p[ag.address]={x:((i+1)/(displayAgents.length+1))*100,y:[0,-6,-3,-8,-2,-5,-7,-1][i%8]};
-    });
+    if(isMobile&&displayAgents.length>5){
+      const half=Math.ceil(displayAgents.length/2);
+      displayAgents.forEach((ag:any,i:number)=>{
+        const isTopRow=i<half;
+        const rowIdx=isTopRow?i:i-half;
+        const rowLen=isTopRow?half:displayAgents.length-half;
+        p[ag.address]={x:((rowIdx+1)/(rowLen+1))*100,y:isTopRow?20:0};
+      });
+    } else {
+      displayAgents.forEach((ag:any,i:number)=>{
+        p[ag.address]={x:((i+1)/(displayAgents.length+1))*100,y:[0,-6,-3,-8,-2,-5,-7,-1][i%8]};
+      });
+    }
     return p;
-  },[displayAgents]);
+  },[displayAgents,isMobile]);
 
   const volumeMax=useMemo(()=>Math.max(...volumeBars.map(b=>b.buy+b.sell),0.001),[volumeBars]);
   const volumeEmpty=useMemo(()=>volumeBars.every(b=>b.buy+b.sell===0),[volumeBars]);
@@ -560,7 +591,7 @@ export default function BoostAI() {
   };
 
   return (
-    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#030210 0%,#08061c 40%,#0c0a24 100%)",color:"#e2e0f0",fontFamily:"'Exo 2',sans-serif"}}>
+    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#030210 0%,#08061c 40%,#0c0a24 100%)",color:"#e2e0f0",fontFamily:"'Exo 2',sans-serif",overflowX:"hidden"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
@@ -589,6 +620,10 @@ export default function BoostAI() {
         input::placeholder{color:#4a4574}
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#030210}::-webkit-scrollbar-thumb{background:#581c87;border-radius:2px}
         button{outline:none}
+        @media(max-width:768px){
+          nav button{font-size:6px!important;padding:6px 8px!important;letter-spacing:0.5px!important}
+          nav button[style*="border-bottom: 4px"]{border-bottom-width:2px!important}
+        }
       `}</style>
 
       {/* AGENT WAKE-UP INTRO */}
@@ -608,26 +643,37 @@ export default function BoostAI() {
       <div style={{position:"fixed",inset:0,zIndex:1,pointerEvents:"none",overflow:"hidden"}}><div style={{width:"100%",height:"2px",background:"rgba(168,85,247,0.04)",animation:"scanline 5s linear infinite"}}/></div>
 
       {/* NAV */}
-      <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:50,padding:"6px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(3,2,16,0.92)",borderBottom:"2px solid #a855f710",backdropFilter:"blur(16px)"}}>
-        <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
-          <div onClick={()=>{setView("home");setModal(null);}} style={{display:"flex",alignItems:"center",gap:"8px",cursor:"pointer"}}>
-            <Creature type={0} size={24} glow/><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"10px",letterSpacing:"2px"}}><span style={{color:"#a855f7"}}>BOOST</span><span style={{color:"#22d3ee"}}>AI</span></span>
-          </div>
-          {agents.length>0&&(()=>{const wa=agents[0];const addr=wa.address||"";const bal=agentBalances[addr];const ethBal=parseFloat(bal?.ethBalance||"0")||0;const hasBal=ethBal>0;const tAddr=addr.length>8?addr.slice(0,6)+"..."+addr.slice(-4):"";return(
-            <div onClick={()=>{setView("dashboard");setModal(null);}} style={{display:"flex",alignItems:"center",gap:"5px",cursor:"pointer",padding:"3px 8px",background:"rgba(34,211,238,0.04)",border:"1px solid #22d3ee15",borderRadius:"2px"}}>
-              <div style={{width:5,height:5,borderRadius:"50%",background:hasBal?"#34d399":"#f87171",animation:hasBal?"none":"feedPulse 2s ease infinite",boxShadow:hasBal?"0 0 4px #34d399":"0 0 4px #f87171",flexShrink:0}}/>
-              <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#22d3ee",letterSpacing:"1px",whiteSpace:"nowrap"}}>{tAddr}</span>
+      <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:50,background:"rgba(3,2,16,0.92)",borderBottom:"2px solid #a855f710",backdropFilter:"blur(16px)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:isMobile?"4px 8px":"6px 16px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:isMobile?"6px":"10px"}}>
+            <div onClick={()=>{setView("home");setModal(null);}} style={{display:"flex",alignItems:"center",gap:isMobile?"4px":"8px",cursor:"pointer"}}>
+              <Creature type={0} size={isMobile?18:24} glow/><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:isMobile?"8px":"10px",letterSpacing:"2px"}}><span style={{color:"#a855f7"}}>BOOST</span><span style={{color:"#22d3ee"}}>AI</span></span>
             </div>
-          );})()}
+            {!isMobile&&agents.length>0&&(()=>{const wa=agents[0];const addr=wa.address||"";const bal=agentBalances[addr];const ethBal=parseFloat(bal?.ethBalance||"0")||0;const hasBal=ethBal>0;const tAddr=addr.length>8?addr.slice(0,6)+"..."+addr.slice(-4):"";return(
+              <div onClick={()=>{setView("dashboard");setModal(null);}} style={{display:"flex",alignItems:"center",gap:"5px",cursor:"pointer",padding:"3px 8px",background:"rgba(34,211,238,0.04)",border:"1px solid #22d3ee15",borderRadius:"2px"}}>
+                <div style={{width:5,height:5,borderRadius:"50%",background:hasBal?"#34d399":"#f87171",animation:hasBal?"none":"feedPulse 2s ease infinite",boxShadow:hasBal?"0 0 4px #34d399":"0 0 4px #f87171",flexShrink:0}}/>
+                <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#22d3ee",letterSpacing:"1px",whiteSpace:"nowrap"}}>{tAddr}</span>
+              </div>
+            );})()}
+          </div>
+          <div style={{display:"flex",gap:isMobile?"3px":"6px",alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
+            {!serverOnline&&<div style={{display:"flex",alignItems:"center",gap:"4px",padding:"3px 8px",background:"#f8717108",border:"2px solid #f8717120",borderRadius:"2px"}}><div style={{width:5,height:5,borderRadius:"50%",background:"#f87171"}}/><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#f87171"}}>{isMobile?"OFF":"SERVER OFFLINE"}</span></div>}
+            {!isMobile&&agents.length>0&&<div style={{display:"flex",alignItems:"center",gap:"4px",padding:"3px 8px",background:"#34d39908",border:"2px solid #34d39920",borderRadius:"2px"}}><div style={{width:5,height:5,borderRadius:"50%",background:"#34d399",animation:"blink 1.5s ease infinite"}}/><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399"}}>{agents.length}</span></div>}
+            <PixBtn onClick={()=>{setView("home");setModal(null);}} ghost color="#4a4574">{isMobile?"HOME":"HOME"}</PixBtn>
+            <PixBtn onClick={()=>{setView("moonbase");setModal(null);setArenaPopup(null);}} ghost color="#4a4574">{isMobile?"MOON":"MOONBASE"}</PixBtn>
+            <PixBtn onClick={()=>{setView("dashboard");setModal(null);}} ghost color="#4a4574">HQ</PixBtn>
+            <PixBtn onClick={openCreate} color="#a855f7">{I.bolt(isMobile?9:11,"#fff")} PLAY</PixBtn>
+          </div>
         </div>
-        <div style={{display:"flex",gap:"6px",alignItems:"center"}}>
-          {!serverOnline&&<div style={{display:"flex",alignItems:"center",gap:"4px",padding:"3px 8px",background:"#f8717108",border:"2px solid #f8717120",borderRadius:"2px"}}><div style={{width:5,height:5,borderRadius:"50%",background:"#f87171"}}/><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#f87171"}}>SERVER OFFLINE</span></div>}
-          {agents.length>0&&<div style={{display:"flex",alignItems:"center",gap:"4px",padding:"3px 8px",background:"#34d39908",border:"2px solid #34d39920",borderRadius:"2px"}}><div style={{width:5,height:5,borderRadius:"50%",background:"#34d399",animation:"blink 1.5s ease infinite"}}/><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399"}}>{agents.length}</span></div>}
-          <PixBtn onClick={()=>{setView("home");setModal(null);}} ghost color="#4a4574">HOME</PixBtn>
-          <PixBtn onClick={()=>{setView("moonbase");setModal(null);setArenaPopup(null);}} ghost color="#4a4574">MOONBASE</PixBtn>
-          <PixBtn onClick={()=>{setView("dashboard");setModal(null);}} ghost color="#4a4574">HQ</PixBtn>
-          <PixBtn onClick={openCreate} color="#a855f7">{I.bolt(11,"#fff")} PLAY</PixBtn>
-        </div>
+        {isMobile&&agents.length>0&&(()=>{const wa=agents[0];const addr=wa.address||"";const bal=agentBalances[addr];const ethBal=parseFloat(bal?.ethBalance||"0")||0;const hasBal=ethBal>0;const tAddr=addr.length>8?addr.slice(0,6)+"..."+addr.slice(-4):"";return(
+          <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:"8px",padding:"3px 8px",borderTop:"1px solid #a855f708",background:"rgba(3,2,16,0.6)"}}>
+            <div onClick={()=>{setView("dashboard");setModal(null);}} style={{display:"flex",alignItems:"center",gap:"5px",cursor:"pointer",padding:"2px 8px",background:"rgba(34,211,238,0.04)",border:"1px solid #22d3ee15",borderRadius:"2px"}}>
+              <div style={{width:4,height:4,borderRadius:"50%",background:hasBal?"#34d399":"#f87171",animation:hasBal?"none":"feedPulse 2s ease infinite",boxShadow:hasBal?"0 0 4px #34d399":"0 0 4px #f87171",flexShrink:0}}/>
+              <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#22d3ee",letterSpacing:"1px",whiteSpace:"nowrap"}}>{tAddr}</span>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:"4px",padding:"2px 6px",background:"#34d39908",border:"1px solid #34d39920",borderRadius:"2px"}}><div style={{width:4,height:4,borderRadius:"50%",background:"#34d399",animation:"blink 1.5s ease infinite"}}/><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#34d399"}}>{agents.length}</span></div>
+          </div>
+        );})()}
       </nav>
 
       <div style={{position:"relative",zIndex:2}}>
@@ -721,27 +767,39 @@ export default function BoostAI() {
 
         {/* === ARENA === */}
         {view==="moonbase"&&!modal&&(
-          <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",paddingTop:"48px"}}>
+          <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",paddingTop:isMobile&&agents.length>0?"62px":"48px"}}>
             {!arenaBrowser?(
             <>
             {/* TOP: MOONBASE - 65vh */}
-            <div style={{height:"65vh",position:"relative",overflow:"hidden",background:"radial-gradient(ellipse at 50% 80%,#0c0a24 0%,#030210 100%)"}}>
+            <div style={{height:isMobile?"55vh":"65vh",position:"relative",overflow:"hidden",background:"radial-gradient(ellipse at 50% 80%,#0c0a24 0%,#030210 100%)"}}>
               {/* Floating stars */}
               {arenaStars.map((s: any,i: number)=>(
                 <div key={i} style={{position:"absolute",left:s.left+"%",bottom:"-5%",width:s.size+"px",height:s.size+"px",borderRadius:"50%",background:s.color,opacity:s.opacity,animation:`starDrift ${s.dur}s linear ${s.delay}s infinite`,pointerEvents:"none"}}/>
               ))}
 
-              {/* Arena title */}
-              <div style={{position:"absolute",top:"16px",left:"50%",transform:"translateX(-50%)",textAlign:"center",zIndex:15}}>
-                <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"clamp(10px,2vw,16px)",color:"#fbbf24",textShadow:"0 0 14px #fbbf2430",letterSpacing:"3px"}}>MOONBASE</div>
-              </div>
-
-              {/* Badge: showing N of total */}
-              {arenaAgents.length>0&&(
-                <div style={{position:"absolute",top:"16px",right:"16px",zIndex:15,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:"6px"}}>
-                  <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",background:"rgba(3,2,16,0.8)",padding:"4px 8px",border:"1px solid #a855f715",borderRadius:"2px",letterSpacing:"1px"}}>SHOWING {displayAgents.length} OF {arenaAgents.length} AGENTS</div>
-                  <div onClick={()=>{setArenaBrowser(true);setBrowserPage(1);setBrowserSearch("");}} style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#22d3ee",cursor:"pointer",letterSpacing:"1px",textDecoration:"underline",textUnderlineOffset:"3px"}}>VIEW ALL AGENTS</div>
+              {/* Arena title + badge */}
+              {isMobile?(
+                <div style={{position:"absolute",top:"10px",left:0,right:0,zIndex:15,display:"flex",flexDirection:"column",alignItems:"center",gap:"6px"}}>
+                  <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"10px",color:"#fbbf24",textShadow:"0 0 14px #fbbf2430",letterSpacing:"3px"}}>MOONBASE</div>
+                  {arenaAgents.length>0&&(
+                    <>
+                      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"5px",color:"#4a4574",background:"rgba(3,2,16,0.8)",padding:"3px 6px",border:"1px solid #a855f715",borderRadius:"2px",letterSpacing:"1px"}}>SHOWING {displayAgents.length} OF {arenaAgents.length} AGENTS</div>
+                      <div onClick={()=>{setArenaBrowser(true);setBrowserPage(1);setBrowserSearch("");}} style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#22d3ee",cursor:"pointer",letterSpacing:"1px",textDecoration:"underline",textUnderlineOffset:"3px"}}>VIEW ALL AGENTS</div>
+                    </>
+                  )}
                 </div>
+              ):(
+                <>
+                  <div style={{position:"absolute",top:"16px",left:"50%",transform:"translateX(-50%)",textAlign:"center",zIndex:15}}>
+                    <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"clamp(10px,2vw,16px)",color:"#fbbf24",textShadow:"0 0 14px #fbbf2430",letterSpacing:"3px"}}>MOONBASE</div>
+                  </div>
+                  {arenaAgents.length>0&&(
+                    <div style={{position:"absolute",top:"16px",right:"16px",zIndex:15,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:"6px"}}>
+                      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",background:"rgba(3,2,16,0.8)",padding:"4px 8px",border:"1px solid #a855f715",borderRadius:"2px",letterSpacing:"1px"}}>SHOWING {displayAgents.length} OF {arenaAgents.length} AGENTS</div>
+                      <div onClick={()=>{setArenaBrowser(true);setBrowserPage(1);setBrowserSearch("");}} style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#22d3ee",cursor:"pointer",letterSpacing:"1px",textDecoration:"underline",textUnderlineOffset:"3px"}}>VIEW ALL AGENTS</div>
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Moon rock platform */}
@@ -761,7 +819,9 @@ export default function BoostAI() {
               {displayAgents.map((ag: any,i: number)=>{
                 const pos=agentPositions[ag.address]||{x:50,y:0};
                 const beam=laserBeams.find((b: any)=>b.idx===i);
-                return(
+                return isMobile?(
+                  <MobileArenaAgent key={ag.address} ag={ag} xPct={pos.x} yOff={pos.y} hasBeam={!!beam} beamDir={beam?.direction} onClick={()=>setArenaPopup(ag)} index={i}/>
+                ):(
                   <ArenaAgent key={ag.address} ag={ag} xPct={pos.x} yOff={pos.y} hasBeam={!!beam} beamDir={beam?.direction} onClick={()=>setArenaPopup(ag)} index={i}/>
                 );
               })}
@@ -786,9 +846,9 @@ export default function BoostAI() {
             </div>
 
             {/* CHART + LIVE FEED row */}
-            <div style={{display:"grid",gridTemplateColumns:"55% 45%",background:"rgba(3,2,16,0.95)",borderTop:"2px solid #a855f720"}}>
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"55% 45%",background:"rgba(3,2,16,0.95)",borderTop:"2px solid #a855f720"}}>
               {/* TRADE VOLUME CHART */}
-              <div style={{padding:"12px 16px",borderRight:"2px solid #a855f710"}}>
+              <div style={{padding:isMobile?"10px 12px":"12px 16px",borderRight:isMobile?"none":"2px solid #a855f710",borderBottom:isMobile?"2px solid #a855f710":"none"}}>
                 <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"8px",color:"#fbbf24",letterSpacing:"2px",marginBottom:"10px"}}>TRADE VOLUME (30 MIN)</div>
                 <div style={{display:"flex",alignItems:"flex-end",gap:"2px",height:"120px",position:"relative"}}>
                   {volumeBars.map((bar,i)=>{
@@ -842,7 +902,7 @@ export default function BoostAI() {
             </div>
 
             {/* STATS BAR */}
-            <div style={{display:"flex",gap:"8px",flexWrap:"wrap",padding:"10px 20px",background:"rgba(3,2,16,0.95)",borderTop:"2px solid #a855f710"}}>
+            <div style={{display:"flex",gap:"8px",flexWrap:isMobile?"nowrap":"wrap",padding:isMobile?"8px 12px":"10px 20px",background:"rgba(3,2,16,0.95)",borderTop:"2px solid #a855f710",overflowX:isMobile?"auto":"visible",WebkitOverflowScrolling:"touch"}}>
               <HudStat label="AGENTS" value={String(arenaAgents.length)} icon={I.star(10,"#22d3ee")}/>
               <HudStat label="SUPPLY" value={loading?"...":fmt(chain.supply)} color="#a855f7" icon={I.bolt(10,"#a855f7")}/>
               <HudStat label="LIQUIDITY" value={loading?"...":chain.liq.toFixed(4)+" ETH"} color="#22d3ee" icon={I.shield(10,"#22d3ee")}/>
