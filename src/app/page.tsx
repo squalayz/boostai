@@ -44,6 +44,85 @@ function lsAdd(agent: any) {
   lsSet(list);
 }
 
+// === BRAIN (BYOK) CONFIG ===
+const BRAIN_KEY = "boostai_brain";
+const PROVIDERS: any = {
+  openai: { name: "OpenAI", url: "https://api.openai.com/v1/chat/completions", models: ["gpt-4o","gpt-4o-mini","gpt-4-turbo"], authHeader: "Bearer" },
+  anthropic: { name: "Anthropic", url: "https://api.anthropic.com/v1/messages", models: ["claude-sonnet-4-20250514","claude-opus-4-6","claude-3-haiku-20240307"], authHeader: "x-api-key" },
+  grok: { name: "Grok/xAI", url: "https://api.x.ai/v1/chat/completions", models: ["grok-2","grok-2-mini"], authHeader: "Bearer" },
+  groq: { name: "Groq", url: "https://api.groq.com/openai/v1/chat/completions", models: ["llama-3.1-70b-versatile","mixtral-8x7b-32768"], authHeader: "Bearer" },
+  google: { name: "Google", url: "https://generativelanguage.googleapis.com/v1beta/models/", models: ["gemini-2.0-flash","gemini-1.5-pro"], authHeader: "key" },
+  openrouter: { name: "OpenRouter", url: "https://openrouter.ai/api/v1/chat/completions", models: ["auto"], authHeader: "Bearer" },
+};
+function brainGet(): any { try { return JSON.parse(localStorage.getItem(BRAIN_KEY) || "null"); } catch { return null; } }
+function brainSet(b: any) { try { localStorage.setItem(BRAIN_KEY, JSON.stringify(b)); } catch {} }
+
+async function callAI(brain: any, systemPrompt: string, userMsg: string): Promise<string> {
+  const prov = PROVIDERS[brain.provider];
+  if (!prov || !brain.apiKey) throw new Error("No brain configured");
+
+  if (brain.provider === "anthropic") {
+    const res = await fetch(prov.url, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": brain.apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+      body: JSON.stringify({ model: brain.model, max_tokens: 512, system: systemPrompt, messages: [{ role: "user", content: userMsg }] }),
+    });
+    if (!res.ok) throw new Error("Anthropic " + res.status);
+    const d = await res.json();
+    return d.content?.[0]?.text || "";
+  }
+
+  if (brain.provider === "google") {
+    const url = prov.url + brain.model + ":generateContent?key=" + brain.apiKey;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt + "\n\nUser: " + userMsg }] }], generationConfig: { maxOutputTokens: 512 } }),
+    });
+    if (!res.ok) throw new Error("Google " + res.status);
+    const d = await res.json();
+    return d.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  }
+
+  // OpenAI-compatible (openai, grok, groq, openrouter)
+  const res = await fetch(prov.url, {
+    method: "POST",
+    headers: { "content-type": "application/json", "Authorization": "Bearer " + brain.apiKey },
+    body: JSON.stringify({ model: brain.model, max_tokens: 512, messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userMsg }] }),
+  });
+  if (!res.ok) throw new Error(prov.name + " " + res.status);
+  const d = await res.json();
+  return d.choices?.[0]?.message?.content || "";
+}
+
+function buildSystemPrompt(agentName: string, ethBal: number, tokenBal: number, price: number, personality: string): string {
+  return `You are ${agentName}, an AI trading agent on BoostAI ($BOOST token on Base L2).
+
+You can execute trades by including a JSON action block in your response:
+- To buy: {"action":"buy","amount":"0.001"} (ETH amount)
+- To sell: {"action":"sell","percent":50} (percentage of BOOST)
+- To DCA: {"action":"dca","amount":"0.001","interval":"1h"}
+- No trade: {"action":"none"}
+
+Current portfolio:
+- ETH balance: ${ethBal.toFixed(6)}
+- BOOST balance: ${Math.round(tokenBal).toLocaleString()}
+- BOOST price: $${price.toFixed(12)}
+- Portfolio value: ~${(ethBal + tokenBal * price).toFixed(6)} ETH
+
+Rules:
+- Always include exactly one JSON action block in your response
+- Keep responses under 3 sentences + the action
+- Be direct and confident
+- If user says "buy now" or "full send", buy aggressively
+- If user says "sell half" or "take profit", sell conservatively
+- If user says "cash out", sell everything
+- If user asks status, report portfolio and say {"action":"none"}
+
+${personality || "You are a sharp, confident crypto trader. You make decisive moves and explain your reasoning briefly."}`
+;
+}
+
 // === AGENT DATA ===
 const AGENTS = [
   { id:0, name:"BOOSTY", desc:"Balanced trader. Steady gains.", color:"#a855f7", eye:"#c084fc", accent:"#fbbf24", atk:4, def:5, spd:3, trait:"BALANCED" },
@@ -371,6 +450,47 @@ export default function BoostAI() {
   const [volumeBars,setVolumeBars]=useState<{buy:number,sell:number}[]>(Array.from({length:30},()=>({buy:0,sell:0})));
   const [isMobile,setIsMobile]=useState(false);
   const [totalAgentCount,setTotalAgentCount]=useState(0);
+  const [cockpitAddr,setCockpitAddr]=useState<string|null>(null);
+  const [chatMessages,setChatMessages]=useState<any[]>([]);
+  const [chatInput,setChatInput]=useState("");
+  const [chatLoading,setChatLoading]=useState(false);
+  const [cockpitData,setCockpitData]=useState<any>(null);
+  const [cockpitModal,setCockpitModal]=useState<string|null>(null);
+  const [cockpitKeyVisible,setCockpitKeyVisible]=useState(false);
+  const [brain,setBrainState]=useState<any>(null);
+  const [brainProvider,setBrainProvider]=useState("openai");
+  const [brainApiKey,setBrainApiKey]=useState("");
+  const [brainModel,setBrainModel]=useState("");
+  const [brainPersonality,setBrainPersonality]=useState("");
+  const [brainTestResult,setBrainTestResult]=useState<string|null>(null);
+  const [brainTesting,setBrainTesting]=useState(false);
+  const [voiceActive,setVoiceActive]=useState(false);
+  const [voiceText,setVoiceText]=useState("");
+  const recognitionRef=useRef<any>(null);
+  const feedRef=useRef<HTMLDivElement>(null);
+  const chatRef=useRef<HTMLInputElement>(null);
+  const prevBalRef=useRef<any>({eth:0,token:0,initial:0,hasInitial:false});
+  const [wizardSlide,setWizardSlide]=useState(0);
+  const [priceHistory,setPriceHistory]=useState<any[]>([]);
+
+  // Load brain config from localStorage
+  useEffect(()=>{
+    const b=brainGet();
+    if(b){setBrainState(b);setBrainProvider(b.provider||"openai");setBrainApiKey(b.apiKey||"");setBrainModel(b.model||"");setBrainPersonality(b.personality||"");}
+  },[]);
+
+  // Auto-enter cockpit on return visit
+  useEffect(()=>{
+    const stored=lsGet();
+    if(stored.length>0&&stored[0].address){
+      // Delay slightly to let other state initialize
+      setTimeout(()=>{
+        setCockpitAddr(stored[0].address);
+        setChatMessages([{text:"Agent online. Awaiting orders.",type:"system",color:"#34d399",ts:Date.now()}]);
+        setViewRaw("cockpit");
+      },2600); // after intro fade
+    }
+  },[]);
 
   // Mobile detection
   useEffect(()=>{
@@ -424,6 +544,22 @@ export default function BoostAI() {
     return()=>{m=false;clearInterval(iv);};
   },[]);
 
+  // Price history for moonbase chart
+  useEffect(()=>{
+    if(view!=="moonbase") return;
+    let m=true;
+    const poll=async()=>{
+      const r=await apiFetch("/api/chain");
+      if(m&&r.ok&&r.data){
+        const price=Number(r.data.price)||0;
+        if(price>0) setPriceHistory(p=>{const next=[...p,{time:Date.now(),price}];return next.slice(-50);});
+      }
+    };
+    poll();
+    const iv=setInterval(poll,15000);
+    return()=>{m=false;clearInterval(iv);};
+  },[view]);
+
   // Load agents from localStorage, then merge with server
   useEffect(()=>{
     let m=true;
@@ -472,6 +608,41 @@ export default function BoostAI() {
   },[agents]);
 
   useEffect(()=>{const t=setTimeout(()=>setIntroFade(false),2400);return()=>clearTimeout(t);},[]);
+
+  // Cockpit: poll agent data every 15s
+  useEffect(()=>{
+    if(view!=="cockpit"||!cockpitAddr) return;
+    let m=true;
+    const poll=async()=>{
+      const r=await apiFetch("/api/agents/"+cockpitAddr);
+      if(m&&r.ok&&r.data){
+        const nd=r.data;
+        setCockpitData(nd);
+        const newEth=parseFloat(nd.ethBalance||"0")||0;
+        const newToken=parseFloat(nd.tokenBalance||"0")||0;
+        const prev=prevBalRef.current;
+        const totalVal=newEth+(newToken*chain.price);
+        if(!prev.hasInitial&&totalVal>0){prev.initial=totalVal;prev.hasInitial=true;}
+        if(prev.eth>0||prev.token>0){
+          if(newToken>prev.token+1000){
+            setChatMessages(p=>[...p,{text:"Bought "+fmt(newToken-prev.token)+" BOOST",type:"system",color:"#34d399",ts:Date.now()}]);
+          }else if(newToken<prev.token-1000){
+            setChatMessages(p=>[...p,{text:"Sold "+fmt(prev.token-newToken)+" BOOST",type:"system",color:"#f87171",ts:Date.now()}]);
+          }
+        }
+        prev.eth=newEth;prev.token=newToken;
+      }
+    };
+    poll();
+    const iv=setInterval(poll,15000);
+    if(chatRef.current) chatRef.current.focus();
+    return()=>{m=false;clearInterval(iv);};
+  },[view,cockpitAddr,chain.price]);
+
+  // Cockpit: auto-scroll feed
+  useEffect(()=>{
+    if(feedRef.current) feedRef.current.scrollTop=feedRef.current.scrollHeight;
+  },[chatMessages]);
 
   // Arena: fetch all registered agents
   useEffect(()=>{
@@ -589,7 +760,7 @@ export default function BoostAI() {
 
   const cp=(txt: string,id: string)=>{navigator.clipboard.writeText(txt).then(()=>{setCopied(id);setTimeout(()=>setCopied(null),2000);});};
   const openCreate=()=>{setModal("select");setAgentName("");setAgentType(0);setWallet(null);setShowKey(false);setNameAvail(null);setNameChecking(false);};
-  const onDeploy=(agent: any)=>{setWallet(agent);lsAdd({name:agentName,type:agentType,...agent,ts:Date.now()});setTimeout(()=>setModal("keys"),500);};
+  const onDeploy=(agent: any)=>{setWallet(agent);const full={name:agentName,type:agentType,...agent,ts:Date.now()};lsAdd(full);setAgents(p=>{const next=[...p.filter((a:any)=>a.address!==agent.address),full];lsSet(next);return next;});setWizardSlide(0);setTimeout(()=>setModal("deployed"),500);};
   const saveKey=()=>{
     if(wallet&&agentName){
       const full={name:agentName,type:agentType,address:wallet.address,privateKey:wallet.privateKey,registrationTx:wallet.registrationTx,ts:Date.now()};
@@ -606,6 +777,113 @@ export default function BoostAI() {
     const r=await apiFetch("/api/agents/"+address+"/ai",{method:"POST",body:JSON.stringify({enabled:next})});
     if(!r.ok) setAiEnabled((p: any)=>({...p,[address]:current}));
   };
+
+  const enterCockpit=(addr:string)=>{
+    setCockpitAddr(addr);
+    setChatMessages([{text:"Agent online. Awaiting orders.",type:"system",color:"#34d399",ts:Date.now()}]);
+    setCockpitData(null);
+    setCockpitModal(null);
+    setCockpitKeyVisible(false);
+    prevBalRef.current={eth:0,token:0,initial:0,hasInitial:false};
+    setView("cockpit");
+    setModal(null);
+  };
+
+  const saveBrain=(prov:string,key:string,model:string,pers:string)=>{
+    const b={provider:prov,apiKey:key,model:model||PROVIDERS[prov]?.models[0]||"",personality:pers};
+    brainSet(b);setBrainState(b);setBrainProvider(prov);setBrainApiKey(key);setBrainModel(model);setBrainPersonality(pers);
+  };
+
+  const testBrain=async()=>{
+    setBrainTesting(true);setBrainTestResult(null);
+    try{
+      const b={provider:brainProvider,apiKey:brainApiKey,model:brainModel||PROVIDERS[brainProvider]?.models[0]||""};
+      const r=await callAI(b as any,"You are a test. Reply with exactly: CONNECTED","ping");
+      setBrainTestResult(r.includes("CONNECTED")?"CONNECTED":"Response: "+r.slice(0,50));
+    }catch(e:any){setBrainTestResult("FAIL: "+e.message);}
+    setBrainTesting(false);
+  };
+
+  const sendChat=async(overrideMsg?:string)=>{
+    const msg=(overrideMsg||chatInput).trim();
+    if(!msg||!cockpitAddr||chatLoading) return;
+    if(!overrideMsg) setChatInput("");
+    setChatMessages(p=>[...p,{text:"> "+msg,type:"user",color:"#22d3ee",ts:Date.now()}]);
+    setChatLoading(true);
+
+    const currentBrain=brainGet();
+    if(currentBrain?.apiKey){
+      // CLIENT-SIDE AI: call user's own provider
+      try{
+        const d=cockpitData||{};
+        const ethBal=parseFloat(d.ethBalance||"0")||0;
+        const tokenBal=parseFloat(d.tokenBalance||"0")||0;
+        const ag=agents.find((a:any)=>a.address===cockpitAddr)||{name:"AGENT"};
+        const sysPrompt=buildSystemPrompt(ag.name||"AGENT",ethBal,tokenBal,chain.price,currentBrain.personality);
+        const response=await callAI(currentBrain,sysPrompt,msg);
+        
+        // Parse action from response
+        const actionMatch=response.match(/\{[^}]*"action"\s*:\s*"[^"]*"[^}]*\}/);
+        let actionText="";
+        let displayResponse=response;
+        if(actionMatch){
+          try{
+            const action=JSON.parse(actionMatch[0]);
+            displayResponse=response.replace(actionMatch[0],"").trim();
+            if(action.action==="buy"&&action.amount){
+              actionText="EXECUTING BUY: "+action.amount+" ETH";
+              // Send trade to server
+              apiFetch("/api/agents/"+cockpitAddr+"/chat",{method:"POST",body:JSON.stringify({message:"buy "+action.amount})});
+            }else if(action.action==="sell"&&action.percent){
+              actionText="EXECUTING SELL: "+action.percent+"%";
+              const sellCmd=action.percent>=95?"cash out":action.percent>=50?"sell half":"sell "+action.percent+"%";
+              apiFetch("/api/agents/"+cockpitAddr+"/chat",{method:"POST",body:JSON.stringify({message:sellCmd})});
+            }else if(action.action==="dca"){
+              actionText="DCA SET: "+action.amount+" ETH every "+action.interval;
+            }
+          }catch{}
+        }
+        setChatMessages(p=>[...p,{text:displayResponse||"...",type:"agent",color:"#e2e0f0",ts:Date.now()}]);
+        if(actionText) setChatMessages(p=>[...p,{text:actionText,type:"system",color:"#fbbf24",ts:Date.now()}]);
+      }catch(e:any){
+        setChatMessages(p=>[...p,{text:"[BRAIN ERROR: "+e.message+"]",type:"system",color:"#f87171",ts:Date.now()}]);
+      }
+    }else{
+      // Fallback: server-side chat (no brain configured)
+      const r=await apiFetch("/api/agents/"+cockpitAddr+"/chat",{method:"POST",body:JSON.stringify({message:msg})});
+      if(r.ok&&r.data){
+        setChatMessages(p=>[...p,{text:r.data.response||r.data.message||"...",type:"agent",color:"#e2e0f0",ts:Date.now()}]);
+      }else{
+        setChatMessages(p=>[...p,{text:"[NO BRAIN] Connect your AI key in settings",type:"system",color:"#f87171",ts:Date.now()}]);
+      }
+    }
+    setChatLoading(false);
+  };
+
+  // Voice: start/stop recognition
+  const startVoice=()=>{
+    const SR=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
+    if(!SR){setChatMessages(p=>[...p,{text:"[VOICE NOT SUPPORTED IN THIS BROWSER]",type:"system",color:"#f87171",ts:Date.now()}]);return;}
+    const r=new SR();
+    r.continuous=false;r.interimResults=true;r.lang="en-US";
+    r.onstart=()=>{setVoiceActive(true);setVoiceText("");};
+    r.onresult=(e:any)=>{let t="";for(let i=0;i<e.results.length;i++)t+=e.results[i][0].transcript;setVoiceText(t);};
+    r.onend=()=>{setVoiceActive(false);const t=voiceText.trim();if(t)sendChat(t);};
+    r.onerror=()=>{setVoiceActive(false);};
+    recognitionRef.current=r;
+    r.start();
+  };
+  const stopVoice=()=>{if(recognitionRef.current){recognitionRef.current.stop();}};
+
+  // Use ref to capture latest voiceText for onend callback
+  const voiceTextRef=useRef("");
+  useEffect(()=>{voiceTextRef.current=voiceText;},[voiceText]);
+  // Fix: update onend to use ref
+  useEffect(()=>{
+    if(recognitionRef.current){
+      recognitionRef.current.onend=()=>{setVoiceActive(false);const t=voiceTextRef.current.trim();if(t)sendChat(t);};
+    }
+  });
 
   return (
     <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#030210 0%,#08061c 40%,#0c0a24 100%)",color:"#e2e0f0",fontFamily:"'Exo 2',sans-serif",overflowX:"hidden"}}>
@@ -634,7 +912,14 @@ export default function BoostAI() {
         @keyframes laserShoot{0%{height:0;opacity:0.8}20%{height:200px;opacity:1}100%{height:200px;opacity:0}}
         @keyframes laserText{0%{opacity:0;transform:translateX(-50%) translateY(0)}15%{opacity:1;transform:translateX(-50%) translateY(-10px)}100%{opacity:0;transform:translateX(-50%) translateY(-50px)}}
         @keyframes feedPulse{0%,100%{opacity:0.3}50%{opacity:1}}
+        @keyframes wizSlideIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:translateX(0)}}
         @keyframes agentCountGlow{0%,100%{text-shadow:0 0 6px #34d39940}50%{text-shadow:0 0 14px #34d39980,0 0 20px #34d39940}}
+        @keyframes cockpitFloat{0%,100%{transform:translateY(-3px)}50%{transform:translateY(3px)}}
+        @keyframes cockpitShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
+        @keyframes cockpitSparkle{0%,100%{opacity:0;transform:scale(0)}50%{opacity:1;transform:scale(1)}}
+        @keyframes cockpitPulseGreen{0%,100%{box-shadow:0 0 10px #34d39940}50%{box-shadow:0 0 25px #34d39980}}
+        @keyframes cockpitPulseRed{0%,100%{box-shadow:0 0 10px #f8717140;transform:scale(0.98)}50%{box-shadow:0 0 25px #f8717180;transform:scale(1.02)}}
+        @keyframes voicePulse{0%,100%{box-shadow:0 0 8px #f8717140}50%{box-shadow:0 0 24px #f8717180,0 0 48px #f8717140}}
         input::placeholder{color:#4a4574}
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#030210}::-webkit-scrollbar-thumb{background:#581c87;border-radius:2px}
         button{outline:none}
@@ -681,6 +966,7 @@ export default function BoostAI() {
             <PixBtn onClick={()=>{setView("home");setModal(null);}} ghost color="#4a4574">{isMobile?"HOME":"HOME"}</PixBtn>
             <PixBtn onClick={()=>{setView("moonbase");setModal(null);setArenaPopup(null);}} ghost color="#4a4574">{isMobile?"MOON":"MOONBASE"}</PixBtn>
             <PixBtn onClick={()=>{setView("dashboard");setModal(null);}} ghost color="#4a4574">HQ</PixBtn>
+            {agents.length>0&&<PixBtn onClick={()=>enterCockpit(agents[0].address)} ghost={view!=="cockpit"} color="#22d3ee">{isMobile?"CPKT":"COCKPIT"}</PixBtn>}
             <PixBtn onClick={openCreate} color="#a855f7">{I.bolt(isMobile?9:11,"#fff")} PLAY</PixBtn>
           </div>
         </div>
@@ -716,9 +1002,15 @@ export default function BoostAI() {
             <div style={{marginTop:"10px",animation:"fadeUp 0.5s ease 0.18s both"}}><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"9px",letterSpacing:"2px"}}><span style={{color:"#34d399",textShadow:"0 0 8px #34d39960",animation:"agentCountGlow 3s ease infinite"}}>{Math.max(totalAgentCount,25)}</span><span style={{color:"#8b85b1"}}> AGENTS DEPLOYED</span></span></div>
             <p style={{fontSize:"clamp(12px,1.5vw,16px)",color:"#8b85b1",maxWidth:"500px",lineHeight:1.7,margin:"18px 0 0",animation:"fadeUp 0.5s ease 0.2s both"}}>Choose your AI creature. Deploy on Base. It trades <span style={{fontWeight:700,color:"#22d3ee",textShadow:"0 0 10px #22d3ee, 0 0 20px #a855f7, 0 0 40px #22d3ee80, 0 0 60px #a855f740",animation:"electricPulse 1.5s ease-in-out infinite",letterSpacing:"2px"}}>$BOOST</span> autonomously. Collect the loot.</p>
             <div style={{display:"flex",gap:"12px",marginTop:"28px",animation:"fadeUp 0.5s ease 0.3s both",flexWrap:"wrap",justifyContent:"center"}}>
-              <PixBtn onClick={openCreate} color="#a855f7" big>{I.bolt(13,"#fff")} CHOOSE AGENT</PixBtn>
+              {agents.length>0?(
+                <>
+                  <PixBtn onClick={()=>enterCockpit(agents[0].address)} color="#22d3ee" big>{I.shield(13,"#fff")} ENTER COCKPIT</PixBtn>
+                  <PixBtn onClick={openCreate} color="#a855f7" big ghost>{I.bolt(13,"#a855f7")} DEPLOY AGENT</PixBtn>
+                </>
+              ):(
+                <PixBtn onClick={openCreate} color="#a855f7" big>{I.bolt(13,"#fff")} CHOOSE AGENT</PixBtn>
+              )}
               <PixBtn onClick={()=>setView("moonbase")} color="#fbbf24" big ghost>{I.moon(13,"#fbbf24")} ENTER MOONBASE</PixBtn>
-              <PixBtn onClick={()=>setView("dashboard")} color="#22d3ee" big ghost>{I.shield(13,"#22d3ee")} DASHBOARD</PixBtn>
             </div>
             <div style={{display:"flex",gap:"8px",marginTop:"44px",flexWrap:"wrap",justifyContent:"center",animation:"fadeUp 0.5s ease 0.4s both"}}>
               <HudStat label="SUPPLY" value={loading?"...":fmt(chain.supply)} icon={I.star(10,"#22d3ee")}/>
@@ -776,7 +1068,11 @@ export default function BoostAI() {
             <div style={{display:"flex",justifyContent:"center",gap:"10px",marginBottom:"16px"}}>{[0,1,2,3,4].map(i=><Creature key={i} type={i} size={28} glow bounce/>)}</div>
             <h2 style={{fontFamily:"'Press Start 2P',monospace",fontSize:"clamp(10px,2vw,16px)",color:"#fbbf24",marginBottom:"8px",textShadow:"0 0 12px #fbbf2425"}}>YOUR AGENTS AWAIT</h2>
             <p style={{fontSize:"12px",color:"#4a4574",maxWidth:"340px",margin:"0 auto 20px",lineHeight:1.5}}>They trade while you sleep. They never stop.</p>
-            <PixBtn onClick={openCreate} color="#a855f7" big>{I.bolt(13,"#fff")} START PLAYING</PixBtn>
+            {agents.length>0?(
+              <PixBtn onClick={()=>enterCockpit(agents[0].address)} color="#22d3ee" big>{I.shield(13,"#fff")} ENTER COCKPIT</PixBtn>
+            ):(
+              <PixBtn onClick={openCreate} color="#a855f7" big>{I.bolt(13,"#fff")} START PLAYING</PixBtn>
+            )}
           </Reveal></section>
 
           <footer style={{padding:"16px 20px",borderTop:"2px solid #a855f708",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -822,6 +1118,55 @@ export default function BoostAI() {
                     </div>
                   )}
                 </>
+              )}
+
+              {/* Price chart background */}
+              {priceHistory.length>=1&&(
+                <div style={{position:"absolute",bottom:"120px",left:0,right:0,height:"40%",zIndex:3,opacity:0.2,pointerEvents:"none"}}>
+                  {(()=>{
+                    const prices=priceHistory;
+                    let points:string,fillPoints:string;
+                    if(prices.length===1){
+                      points="0,50 100,50";
+                      fillPoints="0,100 0,50 100,50 100,100";
+                    }else{
+                      const minP=Math.min(...prices.map((p:any)=>p.price));
+                      const maxP=Math.max(...prices.map((p:any)=>p.price));
+                      const range=maxP-minP||minP*0.1||1;
+                      const padRange=range*1.2;
+                      const midP=(minP+maxP)/2;
+                      const yMin=midP-padRange/2;
+                      const pts=prices.map((p:any,i:number)=>{
+                        const x=(i/(prices.length-1))*100;
+                        const y=100-((p.price-yMin)/padRange)*100;
+                        return`${x},${y}`;
+                      });
+                      points=pts.join(" ");
+                      fillPoints=`0,100 ${points} 100,100`;
+                    }
+                    return(
+                      <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+                        {[20,40,60,80].map((y:number)=>(
+                          <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="#ffffff" strokeWidth="0.3" opacity="0.03"/>
+                        ))}
+                        <defs>
+                          <linearGradient id="boostChartGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#34d399" stopOpacity="0.15"/>
+                            <stop offset="100%" stopColor="#34d399" stopOpacity="0"/>
+                          </linearGradient>
+                        </defs>
+                        <polygon points={fillPoints} fill="url(#boostChartGrad)"/>
+                        <polyline points={points} fill="none" stroke="#34d399" strokeWidth="1" vectorEffect="non-scaling-stroke"/>
+                      </svg>
+                    );
+                  })()}
+                  <div style={{position:"absolute",top:"8px",right:"12px",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399",opacity:0.3}}>
+                    {"$"+priceHistory[priceHistory.length-1]?.price?.toFixed(10)}
+                  </div>
+                  <div style={{position:"absolute",top:"8px",left:"12px",fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#34d399",opacity:0.3}}>
+                    BOOST/ETH
+                  </div>
+                </div>
               )}
 
               {/* Moon rock platform */}
@@ -1035,6 +1380,129 @@ export default function BoostAI() {
             <button onClick={()=>setView("home")} style={{marginTop:"24px",background:"none",border:"none",color:"#4a4574",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"8px"}}>{"<"} BACK</button>
           </div>
         )}
+
+        {/* === COCKPIT === */}
+        {view==="cockpit"&&!modal&&(()=>{
+          const addr=cockpitAddr||(agents.length>0?agents[0].address:null);
+          if(!addr){return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",paddingTop:"64px"}}><GameCard accent="#4a4574"><div style={{textAlign:"center",padding:"40px"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"10px",color:"#8b85b1",marginBottom:"16px"}}>NO AGENT DEPLOYED</div><PixBtn onClick={openCreate} color="#a855f7">{I.bolt(11,"#fff")} DEPLOY AGENT</PixBtn></div></GameCard></div>);}
+          if(!cockpitAddr&&addr) setCockpitAddr(addr);
+          const ag=agents.find((a:any)=>a.address===addr)||{name:"AGENT",type:0,address:addr};
+          const a=AGENTS[(ag.type??0)%5];
+          const d=cockpitData||{};
+          const ethBal=parseFloat(d.ethBalance||"0")||0;
+          const tokenBal=parseFloat(d.tokenBalance||"0")||0;
+          const totalVal=ethBal+(tokenBal*chain.price);
+          const initialVal=prevBalRef.current.hasInitial?prevBalRef.current.initial:totalVal;
+          const pnl=totalVal-initialVal;
+          const pnlPct=initialVal>0?((pnl/initialVal)*100):0;
+          const isProfit=pnl>=0;
+          const lastSysMsg=chatMessages.filter((m:any)=>m.type==="system").slice(-1)[0];
+          const isBuying=lastSysMsg?.color==="#34d399";
+          const isSelling=lastSysMsg?.color==="#f87171";
+          let creatureAnim="cockpitFloat 3s ease-in-out infinite";
+          let creatureFilter="none";
+          if(isBuying){creatureFilter="drop-shadow(0 0 20px #34d399) drop-shadow(0 0 8px #34d399)";}
+          else if(isSelling){creatureFilter="drop-shadow(0 0 20px #f87171) drop-shadow(0 0 8px #f87171)";creatureAnim="cockpitPulseRed 1.5s ease-in-out infinite";}
+          else if(!isProfit&&tokenBal>0){creatureAnim="cockpitShake 0.3s ease-in-out infinite";}
+          return(
+          <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",padding:isMobile?"54px 8px 20px":"64px 20px 40px"}}>
+            <div style={{width:"100%",maxWidth:"420px"}}>
+              <GameCard accent={a.color} glow>
+                {/* Header: name + balances */}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"16px"}}>
+                  <div>
+                    <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"11px",color:a.color}}>{ag.name}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:"6px",marginTop:"4px"}}>
+                      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574"}}>{a.name} / {a.trait}</div>
+                      <div style={{display:"flex",alignItems:"center",gap:"3px",padding:"1px 5px",background:brain?.apiKey?"#34d39910":"#f8717110",border:"1px solid "+(brain?.apiKey?"#34d39930":"#f8717130"),borderRadius:"2px"}}>
+                        <div style={{width:4,height:4,borderRadius:"50%",background:brain?.apiKey?"#34d399":"#f87171",animation:brain?.apiKey?"blink 2s ease infinite":"none"}}/>
+                        <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"5px",color:brain?.apiKey?"#34d399":"#f87171"}}>{brain?.apiKey?"AI ON":"NO BRAIN"}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"9px",color:"#22d3ee"}}>{ethBal.toFixed(4)} ETH</div>
+                    <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"8px",color:"#a855f7",marginTop:"2px"}}>{fmt(tokenBal)} BOOST</div>
+                  </div>
+                </div>
+
+                {/* Creature display */}
+                <div style={{background:"rgba(3,2,16,0.6)",border:"2px solid "+a.color+"15",borderRadius:"3px",padding:"20px",display:"flex",justifyContent:"center",alignItems:"center",minHeight:"140px",position:"relative",overflow:"hidden",marginBottom:"12px"}}>
+                  <div style={{animation:creatureAnim,filter:creatureFilter}}>
+                    <Creature type={(ag.type??0)%5} size={96} glow bounce/>
+                  </div>
+                  {isProfit&&tokenBal>0&&(
+                    [0,1,2,3,4,5].map(i=>(
+                      <div key={i} style={{position:"absolute",width:"4px",height:"4px",borderRadius:"50%",background:"#fbbf24",left:(15+i*13)+"%",top:(10+((i*19)%55))+"%",animation:"cockpitSparkle "+(1.5+i*0.3)+"s ease-in-out "+(i*0.25)+"s infinite",pointerEvents:"none"}}/>
+                    ))
+                  )}
+                </div>
+
+                {/* Activity feed */}
+                <div ref={feedRef} style={{background:"rgba(3,2,16,0.6)",border:"2px solid #a855f710",borderRadius:"3px",padding:"8px",maxHeight:"180px",overflowY:"auto",WebkitOverflowScrolling:"touch",marginBottom:"12px"}}>
+                  {chatMessages.length===0?(
+                    <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#4a4574",textAlign:"center",padding:"12px",animation:"feedPulse 2s ease infinite"}}>AWAITING TRANSMISSION...</div>
+                  ):(
+                    chatMessages.map((m:any,i:number)=>(
+                      <div key={i} style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:m.color,marginBottom:"4px",lineHeight:1.8,animation:"termIn 0.15s ease",wordBreak:"break-word"}}>
+                        {m.text}
+                      </div>
+                    ))
+                  )}
+                  {chatLoading&&<div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#4a4574",animation:"feedPulse 1s ease infinite"}}>THINKING...</div>}
+                </div>
+
+                {/* P&L */}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px",padding:"8px",background:"rgba(3,2,16,0.4)",border:"1px solid "+(isProfit?"#34d399":"#f87171")+"20",borderRadius:"3px"}}>
+                  <div>
+                    <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574"}}>P&L: </span>
+                    <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"9px",color:isProfit?"#34d399":"#f87171"}}>{isProfit?"+":""}{pnl.toFixed(4)} ETH ({isProfit?"+":""}{pnlPct.toFixed(1)}%)</span>
+                  </div>
+                  <div>
+                    <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#a855f7"}}>{fmt(tokenBal)} BOOST</span>
+                  </div>
+                </div>
+
+                {/* Chat input */}
+                <div style={{display:"flex",gap:"6px",marginBottom:"12px"}}>
+                  <input ref={chatRef} type="text" value={chatInput} onChange={e=>setChatInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")sendChat();}} placeholder="talk to your agent..." style={{flex:1,padding:"10px 14px",background:"#050410",border:"2px solid #a855f720",borderRadius:"3px",color:"#22d3ee",fontSize:"8px",fontFamily:"'Press Start 2P',monospace",letterSpacing:"1px",outline:"none",boxSizing:"border-box",minHeight:"44px"}}/>
+                  <PixBtn onClick={()=>sendChat()} color={a.color} disabled={chatLoading||!chatInput.trim()}>SEND</PixBtn>
+                </div>
+
+                {/* Walkie-Talkie */}
+                <div style={{marginBottom:"12px"}}>
+                  <button
+                    onMouseDown={startVoice} onMouseUp={stopVoice} onMouseLeave={()=>{if(voiceActive)stopVoice();}}
+                    onTouchStart={(e)=>{e.preventDefault();startVoice();}} onTouchEnd={stopVoice}
+                    style={{width:"100%",padding:"12px",background:voiceActive?"rgba(248,113,113,0.15)":"rgba(168,85,247,0.06)",border:voiceActive?"2px solid #f87171":"2px solid #a855f720",borderRadius:"3px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",transition:"all 0.2s",animation:voiceActive?"cockpitPulseRed 1s ease-in-out infinite":"none"}}
+                  >
+                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={voiceActive?"#f87171":"#8b85b1"} strokeWidth="2" strokeLinecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                    <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:voiceActive?"#f87171":"#8b85b1",letterSpacing:"1px"}}>{voiceActive?(voiceText||"TRANSMITTING..."):"HOLD TO TALK"}</span>
+                  </button>
+                </div>
+
+                {/* Action buttons */}
+                <div style={{display:"flex",gap:"6px",marginBottom:"8px"}}>
+                  <PixBtn full onClick={()=>sendChat("buy now")} color="#f97316" disabled={chatLoading}>BOOST</PixBtn>
+                  <PixBtn full onClick={()=>setCockpitModal("withdraw")} ghost color="#8b85b1">WITHDRAW</PixBtn>
+                  <PixBtn full onClick={()=>setCockpitModal("fund")} ghost color="#22d3ee">FUND</PixBtn>
+                </div>
+
+                {/* Brain + Settings row */}
+                <div style={{display:"flex",gap:"6px",justifyContent:"center"}}>
+                  <button onClick={()=>setCockpitModal("brain")} style={{background:brain?.apiKey?"rgba(52,211,153,0.08)":"rgba(248,113,113,0.08)",border:brain?.apiKey?"1px solid #34d39930":"1px solid #f8717130",borderRadius:"2px",padding:"4px 12px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:brain?.apiKey?"#34d399":"#f87171",display:"flex",alignItems:"center",gap:"4px"}}>
+                    <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a7 7 0 017 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 01-2 2h-4a2 2 0 01-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 017-7z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>
+                    {brain?.apiKey?"BRAIN: "+PROVIDERS[brain.provider]?.name:"CONNECT BRAIN"}
+                  </button>
+                  <button onClick={()=>setCockpitModal("withdraw")} style={{background:"none",border:"1px solid #8b85b120",borderRadius:"2px",padding:"4px 8px",cursor:"pointer"}}>
+                    {I.lock(10,"#8b85b1")}
+                  </button>
+                </div>
+              </GameCard>
+            </div>
+          </div>
+          );
+        })()}
       </div>
     </div>
 
@@ -1065,6 +1533,105 @@ export default function BoostAI() {
 
           {modal==="deploy"&&<div style={{animation:"fadeUp 0.3s ease"}}><DeployTerm name={agentName} type={agentType} onDone={onDeploy}/></div>}
 
+          {modal==="deployed"&&wallet&&(
+            <div style={{animation:"fadeUp 0.3s ease"}}>
+              {/* Slide dots */}
+              <div style={{display:"flex",justifyContent:"center",gap:"8px",marginBottom:"16px"}}>
+                {[0,1,2].map(i=>(
+                  <div key={i} style={{width:8,height:8,borderRadius:"50%",background:wizardSlide===i?"#22d3ee":"#4a4574",transition:"background 0.3s",boxShadow:wizardSlide===i?"0 0 8px #22d3ee":"none"}}/>
+                ))}
+              </div>
+              <div style={{maxWidth:"420px",margin:"0 auto"}}>
+                {/* Slide 1: YOUR AGENT IS ALIVE */}
+                {wizardSlide===0&&(
+                  <div style={{animation:"wizSlideIn 0.35s ease"}}><GameCard accent="#34d399" glow>
+                    <div style={{textAlign:"center"}}>
+                      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"14px",color:"#fbbf24",marginBottom:"16px",textShadow:"0 0 14px #fbbf2430"}}>YOUR AGENT IS ALIVE</div>
+                      <Creature type={agentType} size={80} glow bounce/>
+                      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:AGENTS[agentType%5].color,marginTop:"12px"}}>{agentName}</div>
+                      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"8px",color:"#8b85b1",marginTop:"6px"}}>{AGENTS[agentType%5].name} / {AGENTS[agentType%5].trait}</div>
+                      <div style={{background:"#050410",border:"2px solid #22d3ee15",borderRadius:"3px",padding:"10px",marginTop:"16px"}}>
+                        <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",letterSpacing:"2px",marginBottom:"4px"}}>WALLET ADDRESS</div>
+                        <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"9px",color:"#22d3ee",wordBreak:"break-all",lineHeight:1.5}}>{wallet.address}</div>
+                        <button onClick={()=>cp(wallet.address,"wiz-addr")} style={{marginTop:"6px",background:"#22d3ee10",border:"1px solid #22d3ee20",borderRadius:"2px",padding:"3px 10px",color:copied==="wiz-addr"?"#34d399":"#22d3ee",fontSize:"7px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace"}}>{copied==="wiz-addr"?"COPIED!":"COPY ADDRESS"}</button>
+                      </div>
+                      <p style={{fontSize:"10px",color:"#8b85b1",marginTop:"14px",lineHeight:1.8}}>This is your AI trader. It thinks, learns, and trades $BOOST 24/7.</p>
+                      <div style={{marginTop:"16px"}}><PixBtn full big onClick={()=>setWizardSlide(1)} color="#34d399">NEXT</PixBtn></div>
+                    </div>
+                  </GameCard></div>
+                )}
+
+                {/* Slide 2: FUEL YOUR AGENT */}
+                {wizardSlide===1&&(
+                  <div style={{animation:"wizSlideIn 0.35s ease"}}><GameCard accent="#22d3ee" glow>
+                    <div style={{textAlign:"center"}}>
+                      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"14px",color:"#fbbf24",marginBottom:"16px",textShadow:"0 0 14px #fbbf2430"}}>FUEL YOUR AGENT</div>
+                      <div style={{background:"#050410",border:"2px solid #22d3ee15",borderRadius:"3px",padding:"14px",marginBottom:"14px"}}>
+                        <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",letterSpacing:"2px",marginBottom:"6px"}}>DEPOSIT ADDRESS (BASE)</div>
+                        <div onClick={()=>cp(wallet.address,"wiz-dep")} style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"10px",color:"#22d3ee",cursor:"pointer",wordBreak:"break-all",lineHeight:1.5}}>{wallet.address}</div>
+                        <button onClick={()=>cp(wallet.address,"wiz-dep")} style={{marginTop:"8px",background:"#22d3ee10",border:"1px solid #22d3ee20",borderRadius:"2px",padding:"4px 14px",color:copied==="wiz-dep"?"#34d399":"#22d3ee",fontSize:"7px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace"}}>{copied==="wiz-dep"?"COPIED!":"COPY"}</button>
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"6px",marginBottom:"14px"}}>
+                        {[{v:"0.01 ETH",s:"~$26"},{v:"0.05 ETH",s:"~$130"},{v:"0.1 ETH",s:"~$260"}].map((o,i)=>(
+                          <div key={i} style={{background:"rgba(8,6,28,0.6)",border:"2px solid #a855f712",borderRadius:"3px",padding:"8px",textAlign:"center"}}>
+                            <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"9px",color:"#22d3ee"}}>{o.v}</div>
+                            <div style={{fontSize:"8px",color:"#4a4574",marginTop:"2px"}}>{o.s}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <p style={{fontSize:"9px",color:"#8b85b1",lineHeight:1.8,marginBottom:"6px",textAlign:"left"}}>Send Base ETH to this address. Your agent uses it to buy and sell $BOOST.</p>
+                      <p style={{fontSize:"8px",color:"#4a4574",lineHeight:1.8,marginBottom:"14px",textAlign:"left"}}>No ETH? Buy on Coinbase and send to Base network.</p>
+                      {wallet.privateKey&&(
+                        <div style={{marginBottom:"14px"}}>
+                          <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#fbbf2480",letterSpacing:"1px",marginBottom:"4px"}}>PRIVATE KEY</div>
+                          <div style={{background:"#050410",border:"2px solid #fbbf2415",borderRadius:"3px",padding:"10px"}}>
+                            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"9px",color:"#e2e0f0",wordBreak:"break-all",lineHeight:1.5,filter:showKey?"none":"blur(5px)",transition:"filter 0.2s",userSelect:showKey?"text":"none"}}>{wallet.privateKey}</div>
+                            <div style={{display:"flex",gap:"6px",marginTop:"6px",justifyContent:"center"}}>
+                              <button onClick={()=>setShowKey(!showKey)} style={{background:"none",border:"1px solid #8b85b130",borderRadius:"2px",padding:"3px 8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#8b85b1",display:"flex",alignItems:"center",gap:"4px"}}>{showKey?I.eyeOff(10,"#8b85b1"):I.eye(10,"#8b85b1")}{showKey?"HIDE":"SHOW"}</button>
+                              <button onClick={()=>cp(wallet.privateKey,"wiz-pk")} style={{background:"none",border:"1px solid #8b85b130",borderRadius:"2px",padding:"3px 8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:copied==="wiz-pk"?"#34d399":"#8b85b1",display:"flex",alignItems:"center",gap:"4px"}}>{copied==="wiz-pk"?I.check(10,"#34d399"):I.copy(10,"#8b85b1")}{copied==="wiz-pk"?"COPIED":"COPY"}</button>
+                            </div>
+                          </div>
+                          <div style={{background:"rgba(248,113,113,0.06)",border:"1px solid #f8717130",borderRadius:"3px",padding:"8px",marginTop:"8px"}}>
+                            <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#f87171",lineHeight:2,textAlign:"center"}}>SAVE THIS KEY -- it&apos;s the only way to recover funds if you lose access</div>
+                          </div>
+                        </div>
+                      )}
+                      <PixBtn full big onClick={()=>setWizardSlide(2)} color="#22d3ee">NEXT</PixBtn>
+                    </div>
+                  </GameCard></div>
+                )}
+
+                {/* Slide 3: TALK TO YOUR AGENT */}
+                {wizardSlide===2&&(
+                  <div style={{animation:"wizSlideIn 0.35s ease"}}><GameCard accent="#a855f7" glow>
+                    <div style={{textAlign:"center"}}>
+                      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"14px",color:"#22d3ee",marginBottom:"16px",textShadow:"0 0 14px #22d3ee30"}}>TALK TO YOUR AGENT</div>
+                      <div style={{background:"#050410",border:"2px solid #a855f715",borderRadius:"3px",padding:"10px",textAlign:"left",marginBottom:"14px",maxHeight:"280px",overflowY:"auto"}}>
+                        {[
+                          {u:"buy now",r:"BOUGHT with 0.005 ETH! SPARK mode activated."},
+                          {u:"how are we doing?",r:"SPARK reporting in. ETH: 0.045 | BOOST: 12.4M"},
+                          {u:"sell half",r:"Sold 50% -- 6.2M BOOST back to ETH. Profit secured."},
+                          {u:"take profit",r:"Sold 50%..."},
+                          {u:"cash out",r:"Sold 95%..."},
+                          {u:"full send",r:"BOUGHT with 80% of ETH!"},
+                          {u:"chill",r:"Standing down. Manual mode."},
+                          {u:"go",r:"ONLINE. Let's eat."},
+                        ].map((m,i)=>(
+                          <div key={i} style={{marginBottom:"8px"}}>
+                            <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#22d3ee",marginBottom:"3px"}}>&gt; {m.u}</div>
+                            <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#e2e0f0",marginBottom:"3px",paddingLeft:"8px"}}>{m.r}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <p style={{fontSize:"9px",color:"#8b85b1",lineHeight:1.8,marginBottom:"16px"}}>Your agent also trades automatically based on its personality. You&apos;re always in control.</p>
+                      <PixBtn full big onClick={()=>{if(wallet?.address){enterCockpit(wallet.address);}else{setModal(null);}}} color="#a855f7">ENTER COCKPIT</PixBtn>
+                    </div>
+                  </GameCard></div>
+                )}
+              </div>
+            </div>
+          )}
+
           {modal==="keys"&&wallet&&(
             <div style={{animation:"fadeUp 0.3s ease"}}><GameCard accent="#34d399" glow>
               <div style={{textAlign:"center",marginBottom:"14px"}}><Creature type={agentType} size={56} glow bounce/><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#34d399",marginTop:"8px"}}>{agentName} DEPLOYED!</div></div>
@@ -1088,7 +1655,7 @@ export default function BoostAI() {
               <div style={{textAlign:"center",marginBottom:"14px"}}><Creature type={agentType} size={56} glow bounce/><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#fbbf24",marginTop:"8px"}}>POWER UP!</div><p style={{fontSize:"10px",color:"#8b85b1",marginTop:"4px"}}>Send ETH on Base to begin</p></div>
               <div style={{background:"#050410",border:"2px solid #22d3ee15",borderRadius:"3px",padding:"14px",textAlign:"center",marginBottom:"14px"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",letterSpacing:"2px",marginBottom:"6px"}}>DEPOSIT (BASE)</div><div onClick={()=>cp(wallet.address,"fa")} style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"10px",color:"#22d3ee",cursor:"pointer",wordBreak:"break-all",lineHeight:1.5}}>{wallet.address}</div>{copied==="fa"&&<div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399",marginTop:"4px"}}>COPIED!</div>}</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"16px"}}>{[{l:"TEST",v:"0.01 ETH",s:"Try it"},{l:"GO BIG",v:"0.1 ETH",s:"Recommended"}].map((o,i)=>(<div key={i} style={{background:"rgba(8,6,28,0.6)",border:"2px solid #a855f712",borderRadius:"3px",padding:"10px",textAlign:"center"}}><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",marginBottom:"4px"}}>{o.l}</div><div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#22d3ee"}}>{o.v}</div><div style={{fontSize:"9px",color:"#4a4574",marginTop:"2px"}}>{o.s}</div></div>))}</div>
-              <PixBtn full big onClick={()=>{setModal(null);setView("moonbase");}} color="#22d3ee">{I.shield(13,"#fff")} ENTER MOONBASE</PixBtn>
+              <PixBtn full big onClick={()=>{if(wallet?.address){enterCockpit(wallet.address);}else{setModal(null);setView("moonbase");}}} color="#22d3ee">{I.shield(13,"#fff")} ENTER COCKPIT</PixBtn>
             </GameCard></div>
           )}
         </div>
@@ -1139,6 +1706,142 @@ export default function BoostAI() {
               <StatBar label="DEF" value={AGENTS[(arenaPopup.type??0)%5].def} color={AGENTS[(arenaPopup.type??0)%5].color}/>
               <StatBar label="SPD" value={AGENTS[(arenaPopup.type??0)%5].spd} color={AGENTS[(arenaPopup.type??0)%5].color}/>
             </div>
+          </GameCard>
+        </div>
+      </div>
+    )}
+
+    {/* BRAIN CONFIG MODAL */}
+    {cockpitModal==="brain"&&(
+      <div onClick={()=>setCockpitModal(null)} style={{position:"fixed",inset:0,zIndex:999,background:"rgba(3,2,16,0.96)",backdropFilter:"blur(12px)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px",animation:"fadeIn 0.2s ease",overflowY:"auto"}}>
+        <div onClick={(e:any)=>e.stopPropagation()} style={{maxWidth:"420px",width:"100%",position:"relative",animation:"fadeUp 0.3s ease"}}>
+          <button onClick={()=>setCockpitModal(null)} style={{position:"absolute",top:"-32px",right:"0",background:"none",border:"none",cursor:"pointer",zIndex:5}}>{I.x(18,"#4a4574")}</button>
+          <GameCard accent="#34d399" glow>
+            <div style={{textAlign:"center",marginBottom:"16px"}}>
+              <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" style={{margin:"0 auto 8px"}}><path d="M12 2a7 7 0 017 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 01-2 2h-4a2 2 0 01-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 017-7z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>
+              <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#34d399",textShadow:"0 0 14px #34d39930"}}>AGENT BRAIN</div>
+              <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#8b85b1",marginTop:"6px"}}>BRING YOUR OWN AI KEY</div>
+            </div>
+
+            {/* Provider selector */}
+            <div style={{marginBottom:"12px"}}>
+              <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",letterSpacing:"2px",marginBottom:"6px"}}>AI PROVIDER</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"4px"}}>
+                {Object.entries(PROVIDERS).map(([key,prov]:any)=>(
+                  <button key={key} onClick={()=>{setBrainProvider(key);setBrainModel(prov.models[0]);setBrainTestResult(null);}} style={{background:brainProvider===key?"#34d39915":"#050410",border:brainProvider===key?"2px solid #34d399":"2px solid #a855f715",borderRadius:"2px",padding:"6px 4px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:brainProvider===key?"#34d399":"#8b85b1",transition:"all 0.2s"}}>{prov.name}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* API Key */}
+            <div style={{marginBottom:"12px"}}>
+              <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",letterSpacing:"2px",marginBottom:"4px"}}>API KEY</div>
+              <input type="password" value={brainApiKey} onChange={e=>setBrainApiKey(e.target.value)} placeholder="sk-..." style={{width:"100%",padding:"10px",background:"#050410",border:"2px solid #a855f720",borderRadius:"3px",color:"#22d3ee",fontSize:"9px",fontFamily:"'JetBrains Mono',monospace",outline:"none",boxSizing:"border-box"}}/>
+              <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"5px",color:"#4a4574",marginTop:"4px"}}>STORED LOCALLY. NEVER SENT TO OUR SERVER.</div>
+            </div>
+
+            {/* Model selector */}
+            <div style={{marginBottom:"12px"}}>
+              <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",letterSpacing:"2px",marginBottom:"4px"}}>MODEL</div>
+              <div style={{display:"flex",gap:"4px",flexWrap:"wrap"}}>
+                {(PROVIDERS[brainProvider]?.models||[]).map((m:string)=>(
+                  <button key={m} onClick={()=>setBrainModel(m)} style={{background:brainModel===m?"#22d3ee15":"#050410",border:brainModel===m?"1px solid #22d3ee":"1px solid #a855f715",borderRadius:"2px",padding:"4px 8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:brainModel===m?"#22d3ee":"#8b85b1"}}>{m.length>20?m.slice(0,20)+"...":m}</button>
+                ))}
+              </div>
+              {brainProvider==="openrouter"&&(
+                <input type="text" value={brainModel} onChange={e=>setBrainModel(e.target.value)} placeholder="model-name" style={{width:"100%",marginTop:"6px",padding:"8px",background:"#050410",border:"2px solid #a855f720",borderRadius:"3px",color:"#22d3ee",fontSize:"8px",fontFamily:"'JetBrains Mono',monospace",outline:"none",boxSizing:"border-box"}}/>
+              )}
+            </div>
+
+            {/* Personality prompt */}
+            <div style={{marginBottom:"12px"}}>
+              <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",letterSpacing:"2px",marginBottom:"4px"}}>PERSONALITY</div>
+              <textarea value={brainPersonality} onChange={e=>setBrainPersonality(e.target.value)} placeholder="Sharp crypto trader. Makes decisive moves..." rows={3} style={{width:"100%",padding:"10px",background:"#050410",border:"2px solid #a855f720",borderRadius:"3px",color:"#e2e0f0",fontSize:"9px",fontFamily:"'JetBrains Mono',monospace",outline:"none",boxSizing:"border-box",resize:"vertical",lineHeight:1.6}}/>
+            </div>
+
+            {/* Test + Save */}
+            <div style={{display:"flex",gap:"6px",marginBottom:"8px"}}>
+              <PixBtn onClick={testBrain} ghost color="#22d3ee" disabled={!brainApiKey||brainTesting}>{brainTesting?"TESTING...":"TEST CONNECTION"}</PixBtn>
+              <PixBtn onClick={()=>{saveBrain(brainProvider,brainApiKey,brainModel||PROVIDERS[brainProvider]?.models[0]||"",brainPersonality);setCockpitModal(null);}} color="#34d399" disabled={!brainApiKey} full>SAVE BRAIN</PixBtn>
+            </div>
+            {brainTestResult&&(
+              <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:brainTestResult.startsWith("FAIL")?"#f87171":"#34d399",textAlign:"center",padding:"6px",background:brainTestResult.startsWith("FAIL")?"rgba(248,113,113,0.06)":"rgba(52,211,153,0.06)",border:"1px solid "+(brainTestResult.startsWith("FAIL")?"#f8717120":"#34d39920"),borderRadius:"2px"}}>{brainTestResult}</div>
+            )}
+            {brain?.apiKey&&(
+              <button onClick={()=>{brainSet(null);setBrainState(null);setBrainApiKey("");setBrainTestResult(null);}} style={{display:"block",margin:"8px auto 0",background:"none",border:"none",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#f87171"}}>DISCONNECT BRAIN</button>
+            )}
+          </GameCard>
+        </div>
+      </div>
+    )}
+
+    {/* COCKPIT WITHDRAW MODAL */}
+    {cockpitModal==="withdraw"&&cockpitAddr&&(()=>{
+      const ag=agents.find((a:any)=>a.address===cockpitAddr);
+      if(!ag) return null;
+      return(
+        <div onClick={()=>setCockpitModal(null)} style={{position:"fixed",inset:0,zIndex:999,background:"rgba(3,2,16,0.96)",backdropFilter:"blur(12px)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px",animation:"fadeIn 0.2s ease",overflowY:"auto"}}>
+          <div onClick={(e:any)=>e.stopPropagation()} style={{maxWidth:"420px",width:"100%",position:"relative",animation:"fadeUp 0.3s ease"}}>
+            <button onClick={()=>setCockpitModal(null)} style={{position:"absolute",top:"-32px",right:"0",background:"none",border:"none",cursor:"pointer",zIndex:5}}>{I.x(18,"#4a4574")}</button>
+            <GameCard accent="#fbbf24" glow>
+              <div style={{textAlign:"center",marginBottom:"16px"}}>
+                <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#fbbf24",textShadow:"0 0 14px #fbbf2430"}}>WITHDRAW</div>
+              </div>
+              <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#8b85b1",lineHeight:2,marginBottom:"16px",textAlign:"center"}}>
+                Tell your agent: &quot;sell all&quot; then send ETH from your agent wallet to your personal wallet.
+              </div>
+              {ag.privateKey?(
+                <div style={{marginBottom:"16px"}}>
+                  <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#fbbf2480",letterSpacing:"1px",marginBottom:"4px"}}>PRIVATE KEY</div>
+                  <div style={{background:"#050410",border:"2px solid #fbbf2415",borderRadius:"3px",padding:"10px"}}>
+                    <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"9px",color:"#e2e0f0",wordBreak:"break-all",lineHeight:1.5,filter:cockpitKeyVisible?"none":"blur(5px)",transition:"filter 0.2s",userSelect:cockpitKeyVisible?"text":"none"}}>{ag.privateKey}</div>
+                    <div style={{display:"flex",gap:"6px",marginTop:"6px"}}>
+                      <button onClick={()=>setCockpitKeyVisible(!cockpitKeyVisible)} style={{background:"none",border:"1px solid #8b85b130",borderRadius:"2px",padding:"3px 8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#8b85b1",display:"flex",alignItems:"center",gap:"4px"}}>{cockpitKeyVisible?I.eyeOff(10,"#8b85b1"):I.eye(10,"#8b85b1")}{cockpitKeyVisible?"HIDE":"SHOW"}</button>
+                      <button onClick={()=>cp(ag.privateKey,"cpk")} style={{background:"none",border:"1px solid #8b85b130",borderRadius:"2px",padding:"3px 8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:copied==="cpk"?"#34d399":"#8b85b1",display:"flex",alignItems:"center",gap:"4px"}}>{copied==="cpk"?I.check(10,"#34d399"):I.copy(10,"#8b85b1")}{copied==="cpk"?"COPIED":"COPY"}</button>
+                    </div>
+                  </div>
+                </div>
+              ):(
+                <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#4a4574",textAlign:"center",marginBottom:"16px"}}>NO KEY STORED IN THIS BROWSER</div>
+              )}
+              <div style={{background:"rgba(34,211,238,0.04)",border:"1px solid #22d3ee20",borderRadius:"3px",padding:"10px",marginBottom:"16px"}}>
+                <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#22d3ee",lineHeight:2}}>METAMASK: Settings &gt; Import Account &gt; Paste private key</div>
+              </div>
+              <div style={{background:"rgba(248,113,113,0.06)",border:"1px solid #f8717130",borderRadius:"3px",padding:"10px",marginBottom:"16px"}}>
+                <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#f87171",lineHeight:2,textAlign:"center"}}>SAVE THIS KEY. NEVER SHARE IT.</div>
+              </div>
+              <PixBtn full onClick={()=>setCockpitModal(null)} color="#fbbf24">CLOSE</PixBtn>
+            </GameCard>
+          </div>
+        </div>
+      );
+    })()}
+
+    {/* COCKPIT FUND MODAL */}
+    {cockpitModal==="fund"&&cockpitAddr&&(
+      <div onClick={()=>setCockpitModal(null)} style={{position:"fixed",inset:0,zIndex:999,background:"rgba(3,2,16,0.96)",backdropFilter:"blur(12px)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px",animation:"fadeIn 0.2s ease",overflowY:"auto"}}>
+        <div onClick={(e:any)=>e.stopPropagation()} style={{maxWidth:"420px",width:"100%",position:"relative",animation:"fadeUp 0.3s ease"}}>
+          <button onClick={()=>setCockpitModal(null)} style={{position:"absolute",top:"-32px",right:"0",background:"none",border:"none",cursor:"pointer",zIndex:5}}>{I.x(18,"#4a4574")}</button>
+          <GameCard accent="#22d3ee" glow>
+            <div style={{textAlign:"center",marginBottom:"16px"}}>
+              <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#22d3ee",textShadow:"0 0 14px #22d3ee30"}}>FUND YOUR AGENT</div>
+              <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#8b85b1",marginTop:"6px"}}>Send Base ETH to fuel your agent</div>
+            </div>
+            <div style={{background:"#050410",border:"2px solid #22d3ee15",borderRadius:"3px",padding:"14px",textAlign:"center",marginBottom:"16px"}}>
+              <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",letterSpacing:"2px",marginBottom:"6px"}}>DEPOSIT ADDRESS (BASE)</div>
+              <div onClick={()=>cp(cockpitAddr,"cfund")} style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"10px",color:"#22d3ee",cursor:"pointer",wordBreak:"break-all",lineHeight:1.5}}>{cockpitAddr}</div>
+              <button onClick={()=>cp(cockpitAddr,"cfund")} style={{marginTop:"8px",background:"#22d3ee10",border:"1px solid #22d3ee20",borderRadius:"2px",padding:"4px 14px",color:copied==="cfund"?"#34d399":"#22d3ee",fontSize:"8px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace"}}>{copied==="cfund"?"COPIED!":"COPY ADDRESS"}</button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"16px"}}>
+              {[{l:"TEST",v:"0.01 ETH",s:"Try it out"},{l:"GO BIG",v:"0.1 ETH",s:"Recommended"}].map((o,i)=>(
+                <div key={i} style={{background:"rgba(8,6,28,0.6)",border:"2px solid #a855f712",borderRadius:"3px",padding:"10px",textAlign:"center"}}>
+                  <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",marginBottom:"4px"}}>{o.l}</div>
+                  <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"12px",color:"#22d3ee"}}>{o.v}</div>
+                  <div style={{fontSize:"9px",color:"#4a4574",marginTop:"2px"}}>{o.s}</div>
+                </div>
+              ))}
+            </div>
+            <PixBtn full onClick={()=>setCockpitModal(null)} color="#22d3ee">DONE</PixBtn>
           </GameCard>
         </div>
       </div>
