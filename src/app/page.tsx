@@ -668,34 +668,39 @@ export default function BoostAI() {
     let m=true;
     const poll=async()=>{
       try{
-        const r=await apiFetch("/api/trades/recent?since="+lastTradeIdRef.current);
-        if(m&&r.ok&&Array.isArray(r.data)&&r.data.length>0){
-          setArenaTrades(p=>[...r.data,...p].slice(0,50));
-          if(r.data[0]?.id) lastTradeIdRef.current=r.data[0].id;
+        const r=await apiFetch("/api/trades");
+        if(m&&r.ok&&r.data?.trades&&Array.isArray(r.data.trades)&&r.data.trades.length>0){
+          const trades=r.data.trades.map((t:any,i:number)=>({
+            id:t.tx||i,
+            type:t.type==="BUY"?"buy":"sell",
+            agentAddress:t.agent,
+            agentName:arenaAgents.find((a:any)=>a.address?.toLowerCase()===t.agent?.toLowerCase())?.name||t.agent?.slice(0,8),
+            amount:parseFloat(t.amount||"0").toFixed(4),
+            timeAgo:t.block?"block "+t.block:"recent",
+            block:t.block,
+          }));
+          setArenaTrades(trades.slice(0,50));
           const da=displayAgentsRef.current;
-          r.data.forEach((trade: any)=>{
-            const idx=da.findIndex((a: any)=>a.address===trade.agentAddress);
-            if(idx>=0) fireLaser(idx,trade.type==="buy"?"buy":"sell",trade.amount||0.01);
+          // Only fire lasers for new trades
+          const prevBlocks=new Set(volumeTradesRef.current.map((t:any)=>t.block));
+          trades.filter((t:any)=>!prevBlocks.has(t.block)).forEach((trade: any)=>{
+            const idx=da.findIndex((a: any)=>a.address?.toLowerCase()===trade.agentAddress?.toLowerCase());
+            if(idx>=0) fireLaser(idx,trade.type,parseFloat(trade.amount)||0.01);
           });
-          const now=Date.now();
-          volumeTradesRef.current=[...r.data,...volumeTradesRef.current].filter((t:any)=>{
-            const ts=t.createdAt?new Date(t.createdAt).getTime():now;
-            return ts>now-30*60*1000;
-          });
+          volumeTradesRef.current=trades;
         }
         if(m){
-          const now=Date.now();
+          // Distribute trades across volume bars by position in list
+          const allTrades=volumeTradesRef.current;
+          const perBar=Math.max(1,Math.ceil(allTrades.length/30));
           const bars=Array.from({length:30},(_,i)=>{
-            const barEnd=now-(29-i)*60*1000;
-            const barStart=barEnd-60*1000;
             let buy=0,sell=0;
-            volumeTradesRef.current.forEach((t:any)=>{
-              const ts=t.createdAt?new Date(t.createdAt).getTime():now;
-              if(ts>=barStart&&ts<barEnd){
-                const amt=parseFloat(t.amount)||0;
-                if(t.type==="buy")buy+=amt;else sell+=amt;
-              }
-            });
+            const start=i*perBar;
+            const end=Math.min(start+perBar,allTrades.length);
+            for(let j=start;j<end;j++){
+              const amt=parseFloat(allTrades[j]?.amount)||0;
+              if(allTrades[j]?.type==="buy")buy+=amt;else sell+=amt;
+            }
             return{buy,sell};
           });
           setVolumeBars(bars);
@@ -952,7 +957,7 @@ export default function BoostAI() {
             <div onClick={()=>{setView("home");setModal(null);}} style={{display:"flex",alignItems:"center",gap:isMobile?"4px":"8px",cursor:"pointer"}}>
               <Creature type={0} size={isMobile?18:24} glow/><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:isMobile?"8px":"10px",letterSpacing:"2px"}}><span style={{color:"#a855f7"}}>BOOST</span><span style={{color:"#22d3ee"}}>AI</span></span>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:"4px",padding:"2px 8px",background:"#34d399",borderRadius:"4px",boxShadow:"0 0 8px #34d39960",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#fff",letterSpacing:"1px",whiteSpace:"nowrap"}}>{Math.max(totalAgentCount,25)}<span style={{fontSize:"5px",opacity:0.8}}>AGENTS</span></div>
+            <div style={{display:"flex",alignItems:"center",gap:"4px",padding:"2px 8px",background:"#34d399",borderRadius:"4px",boxShadow:"0 0 8px #34d39960",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#fff",letterSpacing:"1px",whiteSpace:"nowrap"}}>{totalAgentCount}<span style={{fontSize:"5px",opacity:0.8}}>AGENTS</span></div>
             {!isMobile&&agents.length>0&&(()=>{const wa=agents[0];const addr=wa.address||"";const bal=agentBalances[addr];const ethBal=parseFloat(bal?.ethBalance||"0")||0;const hasBal=ethBal>0;const tAddr=addr.length>8?addr.slice(0,6)+"..."+addr.slice(-4):"";return(
               <div onClick={()=>{setView("dashboard");setModal(null);}} style={{display:"flex",alignItems:"center",gap:"5px",cursor:"pointer",padding:"3px 8px",background:"rgba(34,211,238,0.04)",border:"1px solid #22d3ee15",borderRadius:"2px"}}>
                 <div style={{width:5,height:5,borderRadius:"50%",background:hasBal?"#34d399":"#f87171",animation:hasBal?"none":"feedPulse 2s ease infinite",boxShadow:hasBal?"0 0 4px #34d399":"0 0 4px #f87171",flexShrink:0}}/>
@@ -999,7 +1004,7 @@ export default function BoostAI() {
             <div style={{marginTop:"14px",animation:"fadeUp 0.5s ease 0.15s both"}}>
               <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"10px",color:"#030210",background:"linear-gradient(90deg,#fbbf24,#f59e0b)",padding:"6px 18px",borderRadius:"3px",letterSpacing:"2px",display:"inline-block",boxShadow:"0 0 20px #fbbf2440"}}>LAUNCHING SOON</span>
             </div>
-            <div style={{marginTop:"10px",animation:"fadeUp 0.5s ease 0.18s both"}}><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"9px",letterSpacing:"2px"}}><span style={{color:"#34d399",textShadow:"0 0 8px #34d39960",animation:"agentCountGlow 3s ease infinite"}}>{Math.max(totalAgentCount,25)}</span><span style={{color:"#8b85b1"}}> AGENTS DEPLOYED</span></span></div>
+            <div style={{marginTop:"10px",animation:"fadeUp 0.5s ease 0.18s both"}}><span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"9px",letterSpacing:"2px"}}><span style={{color:"#34d399",textShadow:"0 0 8px #34d39960",animation:"agentCountGlow 3s ease infinite"}}>{totalAgentCount}</span><span style={{color:"#8b85b1"}}> AGENTS DEPLOYED</span></span></div>
             <p style={{fontSize:"clamp(12px,1.5vw,16px)",color:"#8b85b1",maxWidth:"500px",lineHeight:1.7,margin:"18px 0 0",animation:"fadeUp 0.5s ease 0.2s both"}}>Choose your AI creature. Deploy on Base. It trades <span style={{fontWeight:700,color:"#22d3ee",textShadow:"0 0 10px #22d3ee, 0 0 20px #a855f7, 0 0 40px #22d3ee80, 0 0 60px #a855f740",animation:"electricPulse 1.5s ease-in-out infinite",letterSpacing:"2px"}}>$BOOST</span> autonomously. Collect the loot.</p>
             <div style={{display:"flex",gap:"12px",marginTop:"28px",animation:"fadeUp 0.5s ease 0.3s both",flexWrap:"wrap",justifyContent:"center"}}>
               {agents.length>0?(
@@ -1096,10 +1101,10 @@ export default function BoostAI() {
               {isMobile?(
                 <div style={{position:"absolute",top:"10px",left:0,right:0,zIndex:15,display:"flex",flexDirection:"column",alignItems:"center",gap:"6px"}}>
                   <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"10px",color:"#fbbf24",textShadow:"0 0 14px #fbbf2430",letterSpacing:"3px"}}>MOONBASE</div>
-                  <div style={{display:"inline-flex",alignItems:"center",gap:"4px",padding:"2px 6px",background:"#34d399",borderRadius:"4px",boxShadow:"0 0 8px #34d39960",fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#fff",letterSpacing:"1px"}}>{Math.max(totalAgentCount,25)}<span style={{fontSize:"4px",opacity:0.8}}>AGENTS</span></div>
+                  <div style={{display:"inline-flex",alignItems:"center",gap:"4px",padding:"2px 6px",background:"#34d399",borderRadius:"4px",boxShadow:"0 0 8px #34d39960",fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#fff",letterSpacing:"1px"}}>{totalAgentCount}<span style={{fontSize:"4px",opacity:0.8}}>AGENTS</span></div>
                   {arenaAgents.length>0&&(
                     <>
-                      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"5px",color:"#4a4574",background:"rgba(3,2,16,0.8)",padding:"3px 6px",border:"1px solid #a855f715",borderRadius:"2px",letterSpacing:"1px"}}>SHOWING {displayAgents.length} OF {Math.max(arenaAgents.length,25)} AGENTS</div>
+                      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"5px",color:"#4a4574",background:"rgba(3,2,16,0.8)",padding:"3px 6px",border:"1px solid #a855f715",borderRadius:"2px",letterSpacing:"1px"}}>SHOWING {displayAgents.length} OF {arenaAgents.length} AGENTS</div>
                       <div onClick={()=>{setArenaBrowser(true);setBrowserPage(1);setBrowserSearch("");}} style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#22d3ee",cursor:"pointer",letterSpacing:"1px",textDecoration:"underline",textUnderlineOffset:"3px"}}>VIEW ALL AGENTS</div>
                     </>
                   )}
@@ -1108,11 +1113,11 @@ export default function BoostAI() {
                 <>
                   <div style={{position:"absolute",top:"16px",left:"50%",transform:"translateX(-50%)",textAlign:"center",zIndex:15}}>
                     <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"clamp(10px,2vw,16px)",color:"#fbbf24",textShadow:"0 0 14px #fbbf2430",letterSpacing:"3px"}}>MOONBASE</div>
-                    <div style={{marginTop:"6px"}}><span style={{display:"inline-flex",alignItems:"center",gap:"4px",padding:"2px 8px",background:"#34d399",borderRadius:"4px",boxShadow:"0 0 8px #34d39960",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#fff",letterSpacing:"1px"}}>{Math.max(totalAgentCount,25)}<span style={{fontSize:"5px",opacity:0.8}}>AGENTS</span></span></div>
+                    <div style={{marginTop:"6px"}}><span style={{display:"inline-flex",alignItems:"center",gap:"4px",padding:"2px 8px",background:"#34d399",borderRadius:"4px",boxShadow:"0 0 8px #34d39960",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#fff",letterSpacing:"1px"}}>{totalAgentCount}<span style={{fontSize:"5px",opacity:0.8}}>AGENTS</span></span></div>
                   </div>
                   {arenaAgents.length>0&&(
                     <div style={{position:"absolute",top:"16px",right:"16px",zIndex:15,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:"6px"}}>
-                      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",background:"rgba(3,2,16,0.8)",padding:"4px 8px",border:"1px solid #a855f715",borderRadius:"2px",letterSpacing:"1px"}}>SHOWING {displayAgents.length} OF {Math.max(arenaAgents.length,25)} AGENTS</div>
+                      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",background:"rgba(3,2,16,0.8)",padding:"4px 8px",border:"1px solid #a855f715",borderRadius:"2px",letterSpacing:"1px"}}>SHOWING {displayAgents.length} OF {arenaAgents.length} AGENTS</div>
                       <div onClick={()=>{setArenaBrowser(true);setBrowserPage(1);setBrowserSearch("");}} style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#22d3ee",cursor:"pointer",letterSpacing:"1px",textDecoration:"underline",textUnderlineOffset:"3px"}}>VIEW ALL AGENTS</div>
                     </div>
                   )}
@@ -1269,7 +1274,7 @@ export default function BoostAI() {
 
             {/* STATS BAR */}
             <div style={{display:"flex",gap:"8px",flexWrap:isMobile?"nowrap":"wrap",padding:isMobile?"8px 12px":"10px 20px",background:"rgba(3,2,16,0.95)",borderTop:"2px solid #a855f710",overflowX:isMobile?"auto":"visible",WebkitOverflowScrolling:"touch"}}>
-              <HudStat label="AGENTS" value={String(Math.max(arenaAgents.length,25))} icon={I.star(10,"#22d3ee")}/>
+              <HudStat label="AGENTS" value={String(arenaAgents.length)} icon={I.star(10,"#22d3ee")}/>
               <HudStat label="SUPPLY" value={loading?"...":fmt(chain.supply)} color="#a855f7" icon={I.bolt(10,"#a855f7")}/>
               <HudStat label="LIQUIDITY" value={loading?"...":chain.liq.toFixed(4)+" ETH"} color="#22d3ee" icon={I.shield(10,"#22d3ee")}/>
               <HudStat label="BURNED" value={loading?"...":fmt(chain.burned)} color="#f87171" icon={I.flame(10,"#f87171")}/>
@@ -1280,7 +1285,7 @@ export default function BoostAI() {
             /* AGENT BROWSER */
             <div style={{minHeight:"100vh",padding:"64px 20px 40px",maxWidth:"1200px",margin:"0 auto"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px",flexWrap:"wrap",gap:"8px"}}>
-                <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"14px",color:"#fbbf24",letterSpacing:"2px"}}>ALL AGENTS ({Math.max(arenaAgents.length,25)})</div>
+                <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"14px",color:"#fbbf24",letterSpacing:"2px"}}>ALL AGENTS ({arenaAgents.length})</div>
                 <PixBtn onClick={()=>setArenaBrowser(false)} ghost color="#4a4574">BACK TO MOONBASE</PixBtn>
               </div>
               <input type="text" value={browserSearch} onChange={e=>setBrowserSearch(e.target.value.toUpperCase())} placeholder="SEARCH BY NAME..." style={{width:"100%",padding:"10px 14px",background:"#050410",border:"2px solid #a855f720",borderRadius:"3px",color:"#22d3ee",fontSize:"10px",fontFamily:"'Press Start 2P',monospace",letterSpacing:"2px",outline:"none",boxSizing:"border-box",marginBottom:"12px"}}/>
