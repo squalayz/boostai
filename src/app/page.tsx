@@ -967,7 +967,7 @@ export default function BoostAI() {
             <PixBtn onClick={()=>{setView("moonbase");setModal(null);setArenaPopup(null);}} ghost color="#4a4574">{isMobile?"MOON":"MOONBASE"}</PixBtn>
             <PixBtn onClick={()=>{setView("dashboard");setModal(null);}} ghost color="#4a4574">HQ</PixBtn>
             {agents.length>0&&<PixBtn onClick={()=>enterCockpit(agents[0].address)} ghost={view!=="cockpit"} color="#22d3ee">{isMobile?"CPKT":"COCKPIT"}</PixBtn>}
-            <PixBtn onClick={openCreate} color="#a855f7">{I.bolt(isMobile?9:11,"#fff")} PLAY</PixBtn>
+            {agents.length===0&&<PixBtn onClick={openCreate} color="#a855f7">{I.bolt(isMobile?9:11,"#fff")} PLAY</PixBtn>}
           </div>
         </div>
         {isMobile&&agents.length>0&&(()=>{const wa=agents[0];const addr=wa.address||"";const bal=agentBalances[addr];const ethBal=parseFloat(bal?.ethBalance||"0")||0;const hasBal=ethBal>0;const tAddr=addr.length>8?addr.slice(0,6)+"..."+addr.slice(-4):"";return(
@@ -1005,7 +1005,6 @@ export default function BoostAI() {
               {agents.length>0?(
                 <>
                   <PixBtn onClick={()=>enterCockpit(agents[0].address)} color="#22d3ee" big>{I.shield(13,"#fff")} ENTER COCKPIT</PixBtn>
-                  <PixBtn onClick={openCreate} color="#a855f7" big ghost>{I.bolt(13,"#a855f7")} DEPLOY AGENT</PixBtn>
                 </>
               ):(
                 <PixBtn onClick={openCreate} color="#a855f7" big>{I.bolt(13,"#fff")} CHOOSE AGENT</PixBtn>
@@ -1315,7 +1314,7 @@ export default function BoostAI() {
           <div style={{minHeight:"100vh",padding:"64px 20px 40px",maxWidth:"1000px",margin:"0 auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"20px",flexWrap:"wrap",gap:"8px"}}>
               <div><h2 style={{fontFamily:"'Press Start 2P',monospace",fontSize:"clamp(12px,2.5vw,20px)",color:"#fbbf24",textShadow:"0 0 12px #fbbf2425"}}>HEADQUARTERS</h2><p style={{fontSize:"11px",color:"#4a4574",marginTop:"4px"}}>Live from Base</p></div>
-              <PixBtn onClick={openCreate} color="#a855f7">{I.bolt(11,"#fff")} NEW AGENT</PixBtn>
+              {agents.length===0&&<PixBtn onClick={openCreate} color="#a855f7">{I.bolt(11,"#fff")} NEW AGENT</PixBtn>}
             </div>
             <GameCard accent="#a855f7" style={{marginBottom:"16px"}}><div style={{display:"flex",gap:"8px",flexWrap:"wrap"}}>
               <HudStat label="SUPPLY" value={loading?"...":fmt(chain.supply)} icon={I.star(10,"#22d3ee")}/>
@@ -1537,7 +1536,7 @@ export default function BoostAI() {
             <div style={{animation:"fadeUp 0.3s ease"}}>
               {/* Slide dots */}
               <div style={{display:"flex",justifyContent:"center",gap:"8px",marginBottom:"16px"}}>
-                {[0,1,2].map(i=>(
+                {[0,1,2,3].map(i=>(
                   <div key={i} style={{width:8,height:8,borderRadius:"50%",background:wizardSlide===i?"#22d3ee":"#4a4574",transition:"background 0.3s",boxShadow:wizardSlide===i?"0 0 8px #22d3ee":"none"}}/>
                 ))}
               </div>
@@ -1624,7 +1623,43 @@ export default function BoostAI() {
                         ))}
                       </div>
                       <p style={{fontSize:"9px",color:"#8b85b1",lineHeight:1.8,marginBottom:"16px"}}>Your agent also trades automatically based on its personality. You&apos;re always in control.</p>
-                      <PixBtn full big onClick={()=>{if(wallet?.address){enterCockpit(wallet.address);}else{setModal(null);}}} color="#a855f7">ENTER COCKPIT</PixBtn>
+                      <PixBtn full big onClick={()=>setWizardSlide(3)} color="#a855f7">NEXT: CONNECT BRAIN</PixBtn>
+                    </div>
+                  </GameCard></div>
+                )}
+
+                {/* Slide 4: CONNECT YOUR BRAIN */}
+                {wizardSlide===3&&(
+                  <div style={{animation:"wizSlideIn 0.35s ease"}}><GameCard accent="#34d399" glow>
+                    <div style={{textAlign:"center"}}>
+                      <svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" style={{margin:"0 auto 12px"}}><path d="M12 2a7 7 0 017 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 01-2 2h-4a2 2 0 01-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 017-7z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>
+                      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"14px",color:"#34d399",marginBottom:"8px",textShadow:"0 0 14px #34d39930"}}>CONNECT BRAIN</div>
+                      <p style={{fontSize:"9px",color:"#8b85b1",lineHeight:1.8,marginBottom:"16px"}}>Give your agent intelligence. Bring your own AI API key -- it stays in your browser, never sent to us.</p>
+
+                      {/* Provider */}
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"4px",marginBottom:"12px"}}>
+                        {Object.entries(PROVIDERS).map(([key,prov]:any)=>(
+                          <button key={key} onClick={()=>{setBrainProvider(key);setBrainModel(prov.models[0]);}} style={{background:brainProvider===key?"#34d39915":"#050410",border:brainProvider===key?"2px solid #34d399":"2px solid #a855f715",borderRadius:"2px",padding:"6px 4px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"5px",color:brainProvider===key?"#34d399":"#8b85b1"}}>{prov.name}</button>
+                        ))}
+                      </div>
+
+                      {/* Key input */}
+                      <input type="password" value={brainApiKey} onChange={e=>setBrainApiKey(e.target.value)} placeholder="paste API key..." style={{width:"100%",padding:"10px",background:"#050410",border:"2px solid #a855f720",borderRadius:"3px",color:"#22d3ee",fontSize:"9px",fontFamily:"'JetBrains Mono',monospace",outline:"none",boxSizing:"border-box",marginBottom:"8px"}}/>
+
+                      {/* Model */}
+                      <div style={{display:"flex",gap:"4px",flexWrap:"wrap",marginBottom:"12px",justifyContent:"center"}}>
+                        {(PROVIDERS[brainProvider]?.models||[]).map((m:string)=>(
+                          <button key={m} onClick={()=>setBrainModel(m)} style={{background:brainModel===m?"#22d3ee15":"#050410",border:brainModel===m?"1px solid #22d3ee":"1px solid #a855f715",borderRadius:"2px",padding:"3px 6px",cursor:"pointer",fontFamily:"'Press Start 2P',monospace",fontSize:"5px",color:brainModel===m?"#22d3ee":"#8b85b1"}}>{m.length>22?m.slice(0,22)+"...":m}</button>
+                        ))}
+                      </div>
+
+                      <div style={{display:"flex",gap:"6px"}}>
+                        <PixBtn full onClick={()=>{
+                          if(brainApiKey){saveBrain(brainProvider,brainApiKey,brainModel||PROVIDERS[brainProvider]?.models[0]||"",brainPersonality);}
+                          if(wallet?.address){enterCockpit(wallet.address);}else{setModal(null);}
+                        }} color="#34d399" big>{brainApiKey?"SAVE + ENTER COCKPIT":"SKIP FOR NOW"}</PixBtn>
+                      </div>
+                      {!brainApiKey&&<div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",marginTop:"8px"}}>YOU CAN ADD IT LATER IN COCKPIT SETTINGS</div>}
                     </div>
                   </GameCard></div>
                 )}
