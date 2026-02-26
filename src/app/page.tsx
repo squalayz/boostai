@@ -1405,12 +1405,12 @@ export default function BoostAI() {
           else if(!isProfit&&tokenBal>0){creatureAnim="cockpitShake 0.3s ease-in-out infinite";}
           return(
           <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",padding:isMobile?"54px 8px 20px":"64px 20px 40px"}}>
-            <div style={{width:"100%",maxWidth:"420px"}}>
+            <div style={{width:"100%",maxWidth:"560px"}}>
               <GameCard accent={a.color} glow>
                 {/* Header: name + balances */}
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"16px"}}>
                   <div>
-                    <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"11px",color:a.color}}>{ag.name}</div>
+                    <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"14px",color:a.color,textShadow:"0 0 12px "+a.color+"40"}}>{ag.name}</div>
                     <div style={{display:"flex",alignItems:"center",gap:"6px",marginTop:"4px"}}>
                       <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574"}}>{a.name} / {a.trait}</div>
                       <div style={{display:"flex",alignItems:"center",gap:"3px",padding:"1px 5px",background:brain?.apiKey?"#34d39910":"#f8717110",border:"1px solid "+(brain?.apiKey?"#34d39930":"#f8717130"),borderRadius:"2px"}}>
@@ -1420,15 +1420,15 @@ export default function BoostAI() {
                     </div>
                   </div>
                   <div style={{textAlign:"right"}}>
-                    <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"9px",color:"#22d3ee"}}>{ethBal.toFixed(4)} ETH</div>
-                    <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"8px",color:"#a855f7",marginTop:"2px"}}>{fmt(tokenBal)} BOOST</div>
+                    <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"10px",color:"#22d3ee",textShadow:"0 0 8px #22d3ee30"}}>{ethBal.toFixed(4)} ETH</div>
+                    <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"9px",color:"#a855f7",marginTop:"3px"}}>{fmt(tokenBal)} BOOST</div>
                   </div>
                 </div>
 
                 {/* Creature display */}
-                <div style={{background:"rgba(3,2,16,0.6)",border:"2px solid "+a.color+"15",borderRadius:"3px",padding:"20px",display:"flex",justifyContent:"center",alignItems:"center",minHeight:"140px",position:"relative",overflow:"hidden",marginBottom:"12px"}}>
+                <div style={{background:"radial-gradient(ellipse at 50% 60%,"+a.color+"08,rgba(3,2,16,0.8))",border:"2px solid "+a.color+"20",borderRadius:"6px",padding:"32px 20px",display:"flex",justifyContent:"center",alignItems:"center",minHeight:"220px",position:"relative",overflow:"hidden",marginBottom:"16px"}}>
                   <div style={{animation:creatureAnim,filter:creatureFilter}}>
-                    <Creature type={(ag.type??0)%5} size={96} glow bounce/>
+                    <Creature type={(ag.type??0)%5} size={140} glow bounce/>
                   </div>
                   {isProfit&&tokenBal>0&&(
                     [0,1,2,3,4,5].map(i=>(
@@ -1438,7 +1438,7 @@ export default function BoostAI() {
                 </div>
 
                 {/* Activity feed */}
-                <div ref={feedRef} style={{background:"rgba(3,2,16,0.6)",border:"2px solid #a855f710",borderRadius:"3px",padding:"8px",maxHeight:"180px",overflowY:"auto",WebkitOverflowScrolling:"touch",marginBottom:"12px"}}>
+                <div ref={feedRef} style={{background:"rgba(3,2,16,0.6)",border:"2px solid #a855f710",borderRadius:"4px",padding:"12px",maxHeight:"220px",minHeight:"100px",overflowY:"auto",WebkitOverflowScrolling:"touch",marginBottom:"14px"}}>
                   {chatMessages.length===0?(
                     <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#4a4574",textAlign:"center",padding:"12px",animation:"feedPulse 2s ease infinite"}}>AWAITING TRANSMISSION...</div>
                   ):(
@@ -1452,14 +1452,14 @@ export default function BoostAI() {
                 </div>
 
                 {/* P&L */}
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px",padding:"8px",background:"rgba(3,2,16,0.4)",border:"1px solid "+(isProfit?"#34d399":"#f87171")+"20",borderRadius:"3px"}}>
-                  <div>
-                    <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574"}}>P&L: </span>
-                    <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"9px",color:isProfit?"#34d399":"#f87171"}}>{isProfit?"+":""}{pnl.toFixed(4)} ETH ({isProfit?"+":""}{pnlPct.toFixed(1)}%)</span>
-                  </div>
-                  <div>
-                    <span style={{fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#a855f7"}}>{fmt(tokenBal)} BOOST</span>
-                  </div>
+                {/* Balance cards */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"8px",marginBottom:"14px"}}>
+                  {[{l:"ETH",v:ethBal.toFixed(4),c:"#22d3ee"},{l:"BOOST",v:fmt(tokenBal),c:"#a855f7"},{l:"P&L",v:(isProfit?"+":"")+pnlPct.toFixed(1)+"%",c:isProfit?"#34d399":"#f87171"}].map((d,j)=>(
+                    <div key={j} style={{background:`${d.c}06`,border:`1px solid ${d.c}15`,borderRadius:"3px",padding:"10px",textAlign:"center"}}>
+                      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#4a4574",marginBottom:"4px"}}>{d.l}</div>
+                      <div style={{fontFamily:"'Press Start 2P',monospace",fontSize:"11px",color:d.c,textShadow:`0 0 8px ${d.c}30`}}>{d.v}</div>
+                    </div>
+                  ))}
                 </div>
 
                 {/* Chat input */}
