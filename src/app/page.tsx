@@ -1124,54 +1124,11 @@ export default function BoostAI() {
                 </>
               )}
 
-              {/* Price chart background */}
-              {priceHistory.length>=1&&(
-                <div style={{position:"absolute",bottom:"120px",left:0,right:0,height:"40%",zIndex:3,opacity:0.2,pointerEvents:"none"}}>
-                  {(()=>{
-                    const prices=priceHistory;
-                    let points:string,fillPoints:string;
-                    if(prices.length===1){
-                      points="0,50 100,50";
-                      fillPoints="0,100 0,50 100,50 100,100";
-                    }else{
-                      const minP=Math.min(...prices.map((p:any)=>p.price));
-                      const maxP=Math.max(...prices.map((p:any)=>p.price));
-                      const range=maxP-minP||minP*0.1||1;
-                      const padRange=range*1.2;
-                      const midP=(minP+maxP)/2;
-                      const yMin=midP-padRange/2;
-                      const pts=prices.map((p:any,i:number)=>{
-                        const x=(i/(prices.length-1))*100;
-                        const y=100-((p.price-yMin)/padRange)*100;
-                        return`${x},${y}`;
-                      });
-                      points=pts.join(" ");
-                      fillPoints=`0,100 ${points} 100,100`;
-                    }
-                    return(
-                      <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-                        {[20,40,60,80].map((y:number)=>(
-                          <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="#ffffff" strokeWidth="0.3" opacity="0.03"/>
-                        ))}
-                        <defs>
-                          <linearGradient id="boostChartGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#34d399" stopOpacity="0.15"/>
-                            <stop offset="100%" stopColor="#34d399" stopOpacity="0"/>
-                          </linearGradient>
-                        </defs>
-                        <polygon points={fillPoints} fill="url(#boostChartGrad)"/>
-                        <polyline points={points} fill="none" stroke="#34d399" strokeWidth="1" vectorEffect="non-scaling-stroke"/>
-                      </svg>
-                    );
-                  })()}
-                  <div style={{position:"absolute",top:"8px",right:"12px",fontFamily:"'Press Start 2P',monospace",fontSize:"7px",color:"#34d399",opacity:0.3}}>
-                    {"$"+priceHistory[priceHistory.length-1]?.price?.toFixed(10)}
-                  </div>
-                  <div style={{position:"absolute",top:"8px",left:"12px",fontFamily:"'Press Start 2P',monospace",fontSize:"6px",color:"#34d399",opacity:0.3}}>
-                    BOOST/ETH
-                  </div>
-                </div>
-              )}
+              {/* DexScreener chart background */}
+              <div style={{position:"absolute",top:0,left:0,right:0,bottom:"120px",zIndex:2,opacity:0.35,pointerEvents:"none",overflow:"hidden"}}>
+                <iframe src={"https://dexscreener.com/base/"+C.pair+"?embed=1&theme=dark&trades=0&info=0"} style={{width:"100%",height:"100%",border:"none",pointerEvents:"none"}} title="chart" loading="lazy"/>
+                <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(3,2,16,0.6) 0%,transparent 30%,transparent 70%,rgba(3,2,16,0.8) 100%)",pointerEvents:"none"}}/>
+              </div>
 
               {/* Moon rock platform */}
               <div style={{position:"absolute",bottom:0,left:0,right:0,height:"120px",background:"linear-gradient(180deg,#2a2840,#1a1830)",clipPath:"polygon(0% 45%,3% 35%,7% 42%,12% 28%,18% 38%,23% 25%,28% 35%,33% 22%,38% 32%,42% 20%,48% 30%,52% 18%,58% 28%,63% 22%,68% 32%,72% 25%,78% 35%,83% 28%,88% 38%,93% 30%,97% 38%,100% 32%,100% 100%,0% 100%)",boxShadow:"0 -8px 30px rgba(168,85,247,0.08)"}}>
