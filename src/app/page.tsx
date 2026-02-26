@@ -1126,7 +1126,7 @@ export default function BoostAI() {
 
               {/* DexScreener chart background */}
               <div style={{position:"absolute",top:0,left:0,right:0,bottom:"120px",zIndex:2,opacity:0.35,pointerEvents:"none",overflow:"hidden"}}>
-                <iframe src={"https://dexscreener.com/base/"+C.pair+"?embed=1&theme=dark&trades=0&info=0"} style={{width:"100%",height:"100%",border:"none",pointerEvents:"none"}} title="chart" loading="lazy"/>
+                <iframe src={"https://www.dextools.io/widget-chart/en/base/pe-light/"+C.pair+"?theme=dark&chartType=2&chartResolution=15&drawingToolbars=false"} style={{width:"100%",height:"100%",border:"none",pointerEvents:"none"}} title="chart" loading="lazy"/>
                 <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(3,2,16,0.6) 0%,transparent 30%,transparent 70%,rgba(3,2,16,0.8) 100%)",pointerEvents:"none"}}/>
               </div>
 
